@@ -8,7 +8,7 @@ from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 from torch_geometric.utils import is_undirected, to_networkx
 from GNN import GNN
-from Explainer import Predictor, Selector, apply_mask
+from Explainer import Predictor, Selector, apply_mask, random_mask
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -123,11 +123,29 @@ if config['train_baseline']:
                 sns.heatmap(cms, annot=True, fmt='d')
                 plt.xlabel('Predicted')
                 plt.ylabel('True')
-                plt.savefig(f'{log_path}/baseline_cm_{epoch}.png')
+                plt.savefig(f'{log_path}/baseline_cm_true_{epoch}.png')
                 plt.clf()
-            writer.add_scalar('PREDICTOR/baseline_val_acc_true', sum(metrics) / len(metrics), epoch)
+            writer.add_scalar('BASELINE/baseline_val_acc_true', sum(metrics) / len(metrics), epoch)
+            metrics = []
+            cms = []
+            for data in val_loader:
+                data = data.to(baseline.device)
+                data = apply_mask(data, random_mask(data))
+                logits = baseline(data)
+                metric = baseline.metric(logits, data.y)
+                metrics.append(metric.item())
+                cm = confusion_matrix(data.y.cpu().numpy(), logits.argmax(dim=1).cpu().numpy())
+                cms.append(cm)
+            cms = sum(cms)
+            if epoch % 20 == 0:
+                sns.heatmap(cms, annot=True, fmt='d')
+                plt.xlabel('Predicted')
+                plt.ylabel('True')
+                plt.savefig(f'{log_path}/baseline_cm_random_{epoch}.png')
+                plt.clf()
+            writer.add_scalar('BASELINE/baseline_val_acc_random', sum(metrics) / len(metrics), epoch)
 
-baseline.load_state_dict(torch.load('logs/run_0/baseline.pt'))
+baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt')))
 val_loss, val_acc = baseline.test_batch(val_loader)
 print(f'Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}')
 test_loss, test_acc = baseline.test_batch(test_loader)
@@ -214,9 +232,26 @@ if config['train_predictor']:
                 sns.heatmap(cms, annot=True, fmt='d')
                 plt.xlabel('Predicted')
                 plt.ylabel('True')
-                plt.savefig(f'{log_path}/predictor_cm_{epoch}.png')
+                plt.savefig(f'{log_path}/predictor_cm_true_{epoch}.png')
                 plt.clf()
             writer.add_scalar('PREDICTOR/predictor_val_acc_true', sum(metrics) / len(metrics), epoch)
+            metrics = []
+            cms = []
+            for data in val_loader:
+                data = data.to(predictor.device)
+                logits = predictor(data, random_mask(data))
+                metric = predictor.metric(logits, data.y)
+                metrics.append(metric.item())
+                cm = confusion_matrix(data.y.cpu().numpy(), logits.argmax(dim=1).cpu().numpy())
+                cms.append(cm)
+            cms = sum(cms)
+            if epoch % 20 == 0:
+                sns.heatmap(cms, annot=True, fmt='d')
+                plt.xlabel('Predicted')
+                plt.ylabel('True')
+                plt.savefig(f'{log_path}/predictor_cm_random_{epoch}.png')
+                plt.clf()
+            writer.add_scalar('PREDICTOR/predictor_val_acc_random', sum(metrics) / len(metrics), epoch)
         
         # y_preds, y_trues = predictor.predict_batch(val_loader)
         # cm = confusion_matrix(y_trues, y_preds)
