@@ -10,6 +10,7 @@ from torch_geometric.utils import is_undirected, to_networkx
 from GNN import GNN
 from Explainer import Predictor, Selector, apply_mask, random_mask
 from sklearn.metrics import confusion_matrix
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tensorboardX import SummaryWriter
@@ -37,13 +38,7 @@ with open(f'{log_path}/config.yaml', 'w') as f:
 
 # load dataset
 if config['dataset'] == 'BAMotifs':
-    def randomize_x(data):
-        data.x = torch.rand_like(data.x)
-        return data
-    def identity(data):
-        return data
-    transform = T.Compose([identity])
-    dataset = BAMotifsDataset(data_path, num_graphs=1000, ba_nodes=25, attach_prob=0.1, transform=transform)
+    dataset = BAMotifsDataset(data_path, num_graphs=1000, ba_nodes=25, attach_prob=0.1)
 
 dataset = dataset.shuffle()
 print(f'Dataset {config["dataset"]} loaded, number of graphs: {len(dataset)}')
@@ -144,8 +139,29 @@ if config['train_baseline']:
                 plt.savefig(f'{log_path}/baseline_cm_random_{epoch}.png')
                 plt.clf()
             writer.add_scalar('BASELINE/baseline_val_acc_random', sum(metrics) / len(metrics), epoch)
+            # save tsne plot
+            if epoch % 20 == 0:
+                for data in val_loader:
+                    data = data.to(baseline.device)
+                    data = apply_mask(data, data.true.unsqueeze(1))
+                    logits = baseline(data)
+                    break
+                tsne = TSNE(n_components=2).fit_transform(logits.cpu().detach().numpy())
+                plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
+                plt.savefig(f'{log_path}/baseline_tsne_true_{epoch}.png')
+                plt.clf()
+                for data in val_loader:
+                    data = data.to(baseline.device)
+                    data = apply_mask(data, random_mask(data))
+                    logits = baseline(data)
+                    break
+                tsne = TSNE(n_components=2).fit_transform(logits.cpu().detach().numpy())
+                plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
+                plt.savefig(f'{log_path}/baseline_tsne_random_{epoch}.png')
+                plt.clf()
 
-baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt')))
+# baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt')))
+baseline.load_state_dict(torch.load("logs/run_0/baseline.pt"))
 val_loss, val_acc = baseline.test_batch(val_loader)
 print(f'Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}')
 test_loss, test_acc = baseline.test_batch(test_loader)
@@ -185,8 +201,6 @@ predictor = Predictor(
 )
 
 print('Predictor model:\n', predictor)
-
-predictor.load_state_dict(baseline.state_dict())
 
 if config['task_type'] == 'classification':
     y_pred, y_true = predictor.predict_batch(test_loader)
@@ -252,14 +266,24 @@ if config['train_predictor']:
                 plt.savefig(f'{log_path}/predictor_cm_random_{epoch}.png')
                 plt.clf()
             writer.add_scalar('PREDICTOR/predictor_val_acc_random', sum(metrics) / len(metrics), epoch)
-        
-        # y_preds, y_trues = predictor.predict_batch(val_loader)
-        # cm = confusion_matrix(y_trues, y_preds)
-        # sns.heatmap(cm, annot=True, fmt='d')
-        # plt.xlabel('Predicted')
-        # plt.ylabel('True')
-        # plt.savefig(f'{log_path}/predictor_cm_{epoch}.png')
-        # plt.clf()
+            # save tsne plot
+            if epoch % 20 == 0:
+                for data in val_loader:
+                    data = data.to(predictor.device)
+                    logits = predictor(data, data.true.unsqueeze(1))
+                    break
+                tsne = TSNE(n_components=2).fit_transform(logits.cpu().detach().numpy())
+                plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
+                plt.savefig(f'{log_path}/predictor_tsne_true_{epoch}.png')
+                plt.clf()
+                for data in val_loader:
+                    data = data.to(predictor.device)
+                    logits = predictor(data, random_mask(data))
+                    break
+                tsne = TSNE(n_components=2).fit_transform(logits.cpu().detach().numpy())
+                plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
+                plt.savefig(f'{log_path}/predictor_tsne_random_{epoch}.png')
+                plt.clf()
 
 predictor.load_state_dict(torch.load(os.path.join(log_path, 'predictor.pt')))
 val_loss, val_acc = predictor.test_batch(val_loader)
