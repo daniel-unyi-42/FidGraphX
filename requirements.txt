@@ -1,0 +1,11 @@
+pyyaml
+numpy
+networkx
+torch
+torch_geometric
+scikit-learn
+matplotlib
+seaborn
+tensorboard
+tensorboardX
+jupyterlab
