@@ -105,8 +105,8 @@ if config['train_baseline']:
         writer.add_scalar('BASELINE/val_loss', val_loss, epoch)
         writer.add_scalar('BASELINE/val_acc', val_acc, epoch)
 
-        # see accuracy if ground truth was used
         if config['task_type'] == 'classification':
+            # see accuracy if ground truth was used
             metrics = []
             cms = []
             for data in val_loader:
@@ -125,6 +125,7 @@ if config['train_baseline']:
                 plt.savefig(f'{log_path}/baseline_cm_true_{epoch}.png')
                 plt.clf()
             writer.add_scalar('BASELINE/baseline_val_acc_true', sum(metrics) / len(metrics), epoch)
+            # see accuracy if random mask was used
             metrics = []
             cms = []
             for data in val_loader:
@@ -145,6 +146,7 @@ if config['train_baseline']:
             writer.add_scalar('BASELINE/baseline_val_acc_random', sum(metrics) / len(metrics), epoch)
             # save tsne plot
             if epoch % 20 == 0:
+                # save tsne plot if true mask was used
                 for data in val_loader:
                     data = data.to(baseline.device)
                     data = apply_mask(data, data.true.unsqueeze(1))
@@ -154,6 +156,7 @@ if config['train_baseline']:
                 plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
                 plt.savefig(f'{log_path}/baseline_tsne_true_{epoch}.png')
                 plt.clf()
+                # save tsne plot if random mask was used
                 for data in val_loader:
                     data = data.to(baseline.device)
                     data = apply_mask(data, random_mask(data))
@@ -235,8 +238,8 @@ if config['train_predictor']:
         writer.add_scalar('PREDICTOR/val_loss', val_loss, epoch)
         writer.add_scalar('PREDICTOR/val_acc', val_acc, epoch)
 
-        # see accuracy if ground truth was used
         if config['task_type'] == 'classification':
+            # see accuracy if true mask was used: this should be as high as possible
             metrics = []
             cms = []
             for data in val_loader:
@@ -254,6 +257,7 @@ if config['train_predictor']:
                 plt.savefig(f'{log_path}/predictor_cm_true_{epoch}.png')
                 plt.clf()
             writer.add_scalar('PREDICTOR/predictor_val_acc_true', sum(metrics) / len(metrics), epoch)
+            # see accuracy if random mask was used
             metrics = []
             cms = []
             for data in val_loader:
@@ -273,6 +277,7 @@ if config['train_predictor']:
             writer.add_scalar('PREDICTOR/predictor_val_acc_random', sum(metrics) / len(metrics), epoch)
             # save tsne plot
             if epoch % 20 == 0:
+                # save tsne plot if true mask was used: this should be as clustered as possible
                 for data in val_loader:
                     data = data.to(predictor.device)
                     logits = predictor(data, data.true.unsqueeze(1))
@@ -281,6 +286,7 @@ if config['train_predictor']:
                 plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
                 plt.savefig(f'{log_path}/predictor_tsne_true_{epoch}.png')
                 plt.clf()
+                # save tsne plot if random mask was used
                 for data in val_loader:
                     data = data.to(predictor.device)
                     logits = predictor(data, random_mask(data))
