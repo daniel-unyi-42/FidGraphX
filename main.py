@@ -1,5 +1,6 @@
 import yaml
 import os
+import time
 import numpy as np
 import networkx as nx
 import torch
@@ -34,7 +35,7 @@ if not os.path.exists(log_path):
     os.makedirs(log_path)
 
 # initialize logger
-run_id = len(os.listdir(log_path))
+run_id = str(int(time.time()))
 log_path = os.path.join(log_path, f'run_{run_id}')
 writer = SummaryWriter(log_path)
 with open(f'{log_path}/config.yaml', 'w') as f:
