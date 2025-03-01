@@ -135,15 +135,20 @@ class GNN(nn.Module):
         #   logits = self(data)
         #   loss = self.criterion(logits, data.y)
 
-        # VERSION 0: NORMAL
+
+        # normal training
         logits = self(data)
-        # logits = F.normalize(logits, dim=1)
         loss = self.criterion(logits, data.y)
 
-        for _ in range(aug_size):
-          logits_other = self(data)
-          loss_other = self.criterion(logits_other, data.y)
-          loss = loss + loss_other
+        # # predictor model randomly masks a predefined ratio of nodes in each graph
+        # # here, we add loss for multiple augmented samples
+        # if type(self).__name__ == 'Predictor':
+        #   for _ in range(aug_size):
+        #     logits_other = self(data)
+        #     loss_other = self.criterion(logits_other, data.y)
+        #     loss = loss + loss_other
+
+
 
         # # VERSION 1: ADD AUG LOSS
         # if type(self).__name__ == 'Predictor':

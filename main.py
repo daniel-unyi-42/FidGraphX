@@ -27,7 +27,11 @@ np.random.seed(seed)
 
 # set data path and log path
 data_path = config['data_path']
+if not os.path.exists(data_path):
+    os.makedirs(data_path)
 log_path = config['log_path']
+if not os.path.exists(log_path):
+    os.makedirs(log_path)
 
 # initialize logger
 run_id = len(os.listdir(log_path))
@@ -38,7 +42,7 @@ with open(f'{log_path}/config.yaml', 'w') as f:
 
 # load dataset
 if config['dataset'] == 'BAMotifs':
-    dataset = BAMotifsDataset(data_path, num_graphs=1000, ba_nodes=25, attach_prob=0.1)
+    dataset = BAMotifsDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
 
 dataset = dataset.shuffle()
 print(f'Dataset {config["dataset"]} loaded, number of graphs: {len(dataset)}')
@@ -160,8 +164,8 @@ if config['train_baseline']:
                 plt.savefig(f'{log_path}/baseline_tsne_random_{epoch}.png')
                 plt.clf()
 
-# baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
-baseline.load_state_dict(torch.load("logs/run_0/baseline.pt", weights_only=False))
+baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
+# baseline.load_state_dict(torch.load("logs/run_0/baseline.pt", weights_only=False))
 val_loss, val_acc = baseline.test_batch(val_loader)
 print(f'Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}')
 test_loss, test_acc = baseline.test_batch(test_loader)

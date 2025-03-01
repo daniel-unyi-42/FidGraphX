@@ -29,7 +29,7 @@ from torch_geometric.data import Data
 def random_mask(data):
     probs = torch.rand((data.num_nodes, 1), device=data.x.device)
     # rand_value = torch.rand((1,), device=data.x.device)
-    mask = (probs > 0.05).detach().float()
+    mask = (probs > 0.5).detach().float() # 0.05?
     return mask
 
 def apply_mask(data, mask):
