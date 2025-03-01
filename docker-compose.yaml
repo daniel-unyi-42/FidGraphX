@@ -16,7 +16,7 @@ services:
       - "8888:8888"
       - "6006:6006"
     volumes:
-      - ~/workdir:/workspace
+      - /mnt/src/rlgraphs:/workspace
     working_dir: /workspace
     stdin_open: true
     tty: true
