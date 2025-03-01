@@ -160,8 +160,8 @@ if config['train_baseline']:
                 plt.savefig(f'{log_path}/baseline_tsne_random_{epoch}.png')
                 plt.clf()
 
-# baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt')))
-baseline.load_state_dict(torch.load("logs/run_0/baseline.pt"))
+# baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
+baseline.load_state_dict(torch.load("logs/run_0/baseline.pt", weights_only=False))
 val_loss, val_acc = baseline.test_batch(val_loader)
 print(f'Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}')
 test_loss, test_acc = baseline.test_batch(test_loader)
@@ -286,7 +286,7 @@ if config['train_predictor']:
                 plt.savefig(f'{log_path}/predictor_tsne_random_{epoch}.png')
                 plt.clf()
 
-predictor.load_state_dict(torch.load(os.path.join(log_path, 'predictor.pt')))
+predictor.load_state_dict(torch.load(os.path.join(log_path, 'predictor.pt'), weights_only=False))
 val_loss, val_acc = predictor.test_batch(val_loader)
 print(f'Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}')
 test_loss, test_acc = predictor.test_batch(test_loader)
