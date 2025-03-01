@@ -189,6 +189,7 @@ if config['task_type'] == 'regression':
 
 # define predictor model
 predictor = Predictor(
+    baseline = baseline,
     conv_type=config['conv_type'],
     task_type=config['task_type'],
     learning_rate=config['learning_rate'],

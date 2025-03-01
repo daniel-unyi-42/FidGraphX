@@ -5,11 +5,31 @@ import torch_geometric.nn as gnn
 from GNN import GNN, GNBlock, MLPBlock
 from torch_geometric.data import Data
 
+# def motif_preserving_mask(data):
+#     mask = torch.ones((data.num_nodes, 1), device=data.x.device)  # Start with all nodes unmasked
+#     non_motif_nodes = (data.true == 0).nonzero(as_tuple=True)[0]  # Indices of non-motif nodes
+#     probs = torch.rand((len(non_motif_nodes),), device=data.x.device)
+#     mask[non_motif_nodes] = (probs > 0.5).float().unsqueeze(1)  # Mask only non-motif nodes randomly
+#     return mask
+
+# from scipy.special import comb
+
+# num_nodes = 30
+# num_motif_nodes = 5
+# num_selected_nodes = 1
+
+# bad_cases = 0
+# all_cases = comb(num_nodes, num_selected_nodes)
+# for i in range(min(num_motif_nodes, num_selected_nodes), 0, -1):
+#     bad_cases += comb(num_motif_nodes, i) * comb(num_nodes - num_motif_nodes, num_selected_nodes - i)
+#     print(f'({num_motif_nodes} {i}), ({num_nodes - num_motif_nodes}, {num_selected_nodes - i})')
+#     print(f'Probability of selecting at least {i} motif nodes: {bad_cases / all_cases}')
+
 
 def random_mask(data):
     probs = torch.rand((data.num_nodes, 1), device=data.x.device)
     # rand_value = torch.rand((1,), device=data.x.device)
-    mask = (probs > 0.5).detach().float()
+    mask = (probs > 0.05).detach().float()
     return mask
 
 def apply_mask(data, mask):
@@ -24,14 +44,16 @@ def apply_mask(data, mask):
 
 
 class Predictor(GNN):
-    def __init__(self, **kwargs):
+    def __init__(self, baseline, **kwargs):
         super(Predictor, self).__init__(**kwargs)
+        self.baseline = baseline
+        self.baseline.eval()
 
     def forward(self, data, mask=None):
         if mask is None:
             mask = random_mask(data)
         data = apply_mask(data, mask)
-        return super().forward(data)
+        return super(Predictor, self).forward(data)
 
 
 class Selector(nn.Module):

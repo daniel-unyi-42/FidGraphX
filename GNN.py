@@ -26,7 +26,7 @@ class GNBlock(nn.Module):
         hidden_channels,
         out_channels,
         edge_dim=0,
-        use_norm=True,
+        use_norm=False,
     ):
         super().__init__()
         self.conv_type = conv_type
@@ -50,7 +50,7 @@ class GNBlock(nn.Module):
         self.act = nn.LeakyReLU()
         self.use_norm = use_norm
         if use_norm:
-          self.norm = gnn.BatchNorm(out_channels)
+          self.norm = gnn.BatchNorm(out_channels, track_running_stats=False)
 
     def forward(self, x, edge_index, edge_attr=None):
         x = self.conv(x, edge_index, edge_attr)
@@ -71,7 +71,7 @@ class GNN(nn.Module):
         hidden_channels,
         out_channels,
         edge_dim=0,
-        use_norm=True,
+        use_norm=False,
       ):
       super().__init__()
 
@@ -113,6 +113,7 @@ class GNN(nn.Module):
       return x
 
     def train_batch(self, loader):
+      aug_size = 3
       self.train()
       losses = []
       metrics = []
@@ -121,8 +122,48 @@ class GNN(nn.Module):
         if data.y.dim() == 0:
           data.y = data.y.unsqueeze(1)
         self.optimizer.zero_grad()
+
+        # if type(self).__name__ == 'Predictor':
+        #   for _ in range(aug_size):
+        #     logits = self(data)
+        #     logits_other = self(data)
+        #     loss = self.criterion(logits, data.y)
+        #     loss_other = self.criterion(logits_other, data.y)
+        #     consistency_loss = F.mse_loss(logits, logits_other)
+        #     loss = loss + loss_other + consistency_loss
+        # else:
+        #   logits = self(data)
+        #   loss = self.criterion(logits, data.y)
+
+        # VERSION 0: NORMAL
         logits = self(data)
+        # logits = F.normalize(logits, dim=1)
         loss = self.criterion(logits, data.y)
+
+        for _ in range(aug_size):
+          logits_other = self(data)
+          loss_other = self.criterion(logits_other, data.y)
+          loss = loss + loss_other
+
+        # # VERSION 1: ADD AUG LOSS
+        # if type(self).__name__ == 'Predictor':
+        #   for _ in range(aug_size):
+        #     logits_other = self(data)
+        #     # logits_other = F.normalize(logits_other, dim=1)
+        #     loss_other = self.criterion(logits_other, data.y)
+        #     consistency_loss = F.mse_loss(logits, logits_other)
+        #     loss = loss + loss_other + consistency_loss
+
+        # # VERSION 2: ADD FIDELITY LOSS
+        # if type(self).__name__ == 'Predictor':
+        #   self.baseline.eval()
+        #   with torch.no_grad():
+        #     logits_baseline = self.baseline(data)
+        #     logits_baseline = F.normalize(logits_baseline, dim=1)
+        #   fidelity_loss = F.mse_loss(logits, logits_baseline)
+        #   fidelity_loss_other = F.mse_loss(logits_baseline, logits_other)
+        #   loss = loss + fidelity_loss + fidelity_loss_other
+        
         loss.backward()
         self.optimizer.step()
         losses.append(loss.item())
