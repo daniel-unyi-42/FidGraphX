@@ -2,6 +2,7 @@ pyyaml
 numpy
 networkx
 torch
+torchmetrics
 torch_geometric
 scikit-learn
 matplotlib
