@@ -50,7 +50,7 @@ class GNBlock(nn.Module):
         self.act = nn.LeakyReLU()
         self.use_norm = use_norm
         if use_norm:
-          self.norm = gnn.BatchNorm(out_channels, track_running_stats=False)
+          self.norm = gnn.BatchNorm(out_channels, track_running_stats=True)
 
     def forward(self, x, edge_index, edge_attr=None):
         x = self.conv(x, edge_index, edge_attr)
