@@ -113,7 +113,7 @@ class GNN(nn.Module):
       return x
 
     def train_batch(self, loader):
-      aug_size = 3
+      aug_size = 5
       self.train()
       losses = []
       metrics = []
@@ -140,18 +140,18 @@ class GNN(nn.Module):
         logits = self(data)
         loss = self.criterion(logits, data.y)
 
-        if type(self).__name__ == 'Predictor':
-          logits_full = self(data, mask=torch.ones((data.num_nodes, 1), device=data.x.device))
-          loss_full = self.criterion(logits_full, data.y)
-          consistency_loss = (1 - F.cosine_similarity(logits, logits_full)).mean()
-          loss = loss + loss_full + consistency_loss
-
-
         # if type(self).__name__ == 'Predictor':
-        #   for _ in range(aug_size):
-        #     logits_other = self(data)
-        #     loss_other = self.criterion(logits_other, data.y)
-        #     loss = loss + loss_other
+        #   logits_full = self(data, mask=torch.ones((data.num_nodes, 1), device=data.x.device))
+        #   loss_full = self.criterion(logits_full, data.y)
+        #   consistency_loss = (1 - F.cosine_similarity(logits, logits_full)).mean()
+        #   loss = loss + loss_full + consistency_loss
+
+
+        if type(self).__name__ == 'Predictor':
+          for _ in range(aug_size):
+            logits_other = self(data)
+            loss_other = self.criterion(logits_other, data.y)
+            loss = loss + loss_other
 
 
 
