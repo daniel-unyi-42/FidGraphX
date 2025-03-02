@@ -140,11 +140,16 @@ class GNN(nn.Module):
         logits = self(data)
         loss = self.criterion(logits, data.y)
 
-        if type(self).__name__ == 'Predictor':
-          logits_full = self(data, mask=torch.ones((data.num_nodes, 1), device=data.x.device))
-          loss_full = self.criterion(logits_full, data.y)
-          consistency_loss = (1 - F.cosine_similarity(logits, logits_full)).mean()
-          loss = loss + loss_full + consistency_loss
+        # if type(self).__name__ == 'Predictor':
+        #   logits_full = self(data, mask=torch.ones((data.num_nodes, 1), device=data.x.device))
+        #   loss_full = self.criterion(logits_full, data.y)
+        #   consistency_loss = (1 - F.cosine_similarity(logits, logits_full)).mean()
+        #   loss = loss + loss_full + consistency_loss
+
+
+
+
+
 
         # # predictor model randomly masks a predefined ratio of nodes in each graph
         # # here, we add loss for multiple augmented samples
@@ -153,8 +158,6 @@ class GNN(nn.Module):
         #     logits_other = self(data)
         #     loss_other = self.criterion(logits_other, data.y)
         #     loss = loss + loss_other
-
-
 
         # # VERSION 1: ADD AUG LOSS
         # if type(self).__name__ == 'Predictor':
