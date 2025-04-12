@@ -4,17 +4,16 @@ log_path: "logs"
 
 task_type: "classification"
 
-conv_type: "GINConv"
+conv_type: "NNConv"
 
-num_layers: 2
+num_layers: 3
 hidden_channels: 64
-use_norm: false
-learning_rate: 0.002
+use_norm: true
+learning_rate: 0.0002
 epochs: 200
 batch_size: 64
 
 train_baseline: true
-train_predictor: true
 train_selector: true
 
 sparsity: 0.2

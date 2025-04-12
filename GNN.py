@@ -8,6 +8,9 @@ from GNLayer import GNLayer
 class MLPBlock(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
         super().__init__()
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.out_channels = out_channels
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, hidden_channels),
             nn.LeakyReLU(),
@@ -29,6 +32,9 @@ class GNBlock(nn.Module):
         use_norm=False,
     ):
         super().__init__()
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.out_channels = out_channels
         self.conv_type = conv_type
         if conv_type == 'GCNConv':
           assert edge_dim <= 1, 'GCNConv only supports edge_dim <= 1'
@@ -113,69 +119,16 @@ class GNN(nn.Module):
       return x
 
     def train_batch(self, loader):
-      aug_size = 5
       self.train()
       losses = []
       metrics = []
       for data in loader:
         data = data.to(self.device)
-        if data.y.dim() == 0:
+        if self.task_type == 'regression':
           data.y = data.y.unsqueeze(1)
         self.optimizer.zero_grad()
-
-        # if type(self).__name__ == 'Predictor':
-        #   for _ in range(aug_size):
-        #     logits = self(data)
-        #     logits_other = self(data)
-        #     loss = self.criterion(logits, data.y)
-        #     loss_other = self.criterion(logits_other, data.y)
-        #     consistency_loss = F.mse_loss(logits, logits_other)
-        #     loss = loss + loss_other + consistency_loss
-        # else:
-        #   logits = self(data)
-        #   loss = self.criterion(logits, data.y)
-
-
-        # normal training
         logits = self(data)
         loss = self.criterion(logits, data.y)
-
-        # if type(self).__name__ == 'Predictor':
-        #   logits_full = self(data, mask=torch.ones((data.num_nodes, 1), device=data.x.device))
-        #   loss_full = self.criterion(logits_full, data.y)
-        #   consistency_loss = (1 - F.cosine_similarity(logits, logits_full)).mean()
-        #   loss = loss + loss_full + consistency_loss
-
-
-        if type(self).__name__ == 'Predictor':
-          for _ in range(aug_size):
-            logits_other = self(data)
-            loss_other = self.criterion(logits_other, data.y)
-            loss = loss + loss_other
-
-
-
-
-
-        # # VERSION 1: ADD AUG LOSS
-        # if type(self).__name__ == 'Predictor':
-        #   for _ in range(aug_size):
-        #     logits_other = self(data)
-        #     # logits_other = F.normalize(logits_other, dim=1)
-        #     loss_other = self.criterion(logits_other, data.y)
-        #     consistency_loss = F.mse_loss(logits, logits_other)
-        #     loss = loss + loss_other + consistency_loss
-
-        # # VERSION 2: ADD FIDELITY LOSS
-        # if type(self).__name__ == 'Predictor':
-        #   self.baseline.eval()
-        #   with torch.no_grad():
-        #     logits_baseline = self.baseline(data)
-        #     logits_baseline = F.normalize(logits_baseline, dim=1)
-        #   fidelity_loss = F.mse_loss(logits, logits_baseline)
-        #   fidelity_loss_other = F.mse_loss(logits_baseline, logits_other)
-        #   loss = loss + fidelity_loss + fidelity_loss_other
-        
         loss.backward()
         self.optimizer.step()
         losses.append(loss.item())
@@ -190,7 +143,7 @@ class GNN(nn.Module):
       metrics = []
       for data in loader:
         data = data.to(self.device)
-        if data.y.dim() == 0:
+        if self.task_type == 'regression':
           data.y = data.y.unsqueeze(1)
         logits = self(data)
         loss = self.criterion(logits, data.y)
@@ -206,7 +159,7 @@ class GNN(nn.Module):
       y_trues = []
       for data in loader:
         data = data.to(self.device)
-        if data.y.dim() == 0:
+        if self.task_type == 'regression':
           data.y = data.y.unsqueeze(1)
         logits = self(data)
         if self.task_type == 'classification':
