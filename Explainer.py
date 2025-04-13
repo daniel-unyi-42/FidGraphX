@@ -1,64 +1,9 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from GNN import GNBlock, MLPBlock
-from torch_geometric.data import Data
-
-def apply_mask(data, mask):
-    x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-    x = (x * mask).float()
-    mask = mask.squeeze().bool()
-    edge_mask = (mask[edge_index[0]]) & (mask[edge_index[1]])
-    edge_index = edge_index[:, edge_mask]
-    if edge_attr is not None:
-        edge_attr = edge_attr[edge_mask]
-    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=data.batch, y=data.y)
-
-def tensor_to_list(tensor):
-    result = []
-    for i in range(len(tensor)):
-        result.append(tensor[i].detach().cpu().numpy())
-    return result
-
-def tensor_batch_to_list(tensor, batch):
-    result = []
-    for i in range(batch.max() + 1):
-        result.append(tensor[batch == i].detach().cpu().numpy())
-    return result
-
-def fid_plus_prob(pos_preds, baseline_preds):
-    if type(pos_preds) == list:
-        pos_preds = np.vstack(pos_preds)
-    if type(baseline_preds) == list:
-        baseline_preds = np.vstack(baseline_preds)
-    result = np.mean(np.abs(baseline_preds - pos_preds))
-    return result
-
-def fid_minus_prob(neg_preds, baseline_preds):
-    if type(neg_preds) == list:
-        neg_preds = np.vstack(neg_preds)
-    if type(baseline_preds) == list:
-        baseline_preds = np.vstack(baseline_preds)
-    result = np.mean(np.abs(baseline_preds - neg_preds))
-    return result
-
-def fid_plus_acc(pos_preds, baseline_preds):
-    if type(pos_preds) == list:
-        pos_preds = np.vstack(pos_preds)
-    if type(baseline_preds) == list:
-        baseline_preds = np.vstack(baseline_preds)
-    result = 1.0 - np.mean(np.argmax(pos_preds, axis=1) == np.argmax(baseline_preds, axis=1))
-    return result
-
-def fid_minus_acc(neg_preds, baseline_preds):
-    if type(neg_preds) == list:
-        neg_preds = np.vstack(neg_preds)
-    if type(baseline_preds) == list:
-        baseline_preds = np.vstack(baseline_preds)
-    result = 1.0 - np.mean(np.argmax(neg_preds, axis=1) == np.argmax(baseline_preds, axis=1))
-    return result
+from utilities import apply_mask, tensor_to_list, tensor_batch_to_list, fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc
 
 class Selector(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
@@ -99,18 +44,6 @@ class Selector(nn.Module):
         self.to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         self.criterion = self.loss
-        self.metrics = {
-            'self_loss': self.loss,
-            'sparsity': self.sparsity,
-            'pos_loss': self.pos_predictor.criterion,
-            'neg_loss': self.neg_predictor.criterion,
-            'pos_metric': self.pos_predictor.metric,
-            'neg_metric': self.neg_predictor.metric,
-            'fid_plus_prob': fid_plus_prob,
-            'fid_minus_prob': fid_minus_prob,
-            'fid_plus_acc': fid_plus_acc,
-            'fid_minus_acc': fid_minus_acc,
-        }
     
     def loss(self, reward, y_true, y_pred, batch):
         # the reward is calculated for each graph
@@ -137,8 +70,9 @@ class Selector(nn.Module):
         return x
 
     def train_batch(self, loader):
+        self.baseline.eval()
         self_losses, sparsities = [], []
-        pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], [], [], []
+        pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
@@ -190,11 +124,12 @@ class Selector(nn.Module):
             neg_metric = self.neg_predictor.metric(neg_logits, data.y)
             pos_metrics.append(pos_metric.item())
             neg_metrics.append(neg_metric.item())
-            baseline_preds = self.baseline(data)
-            fid_plus_prob_metric = fid_plus_prob(pos_logits, baseline_preds)
-            fid_minus_prob_metric = fid_minus_prob(neg_logits, baseline_preds)
-            fid_plus_acc_metric = fid_plus_acc(pos_logits, baseline_preds)
-            fid_minus_acc_metric = fid_minus_acc(neg_logits, baseline_preds)
+            with torch.no_grad():
+                baseline_preds = self.baseline(data)
+            fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_preds)
+            fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_preds)
+            fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_preds)
+            fid_minus_acc_metric = fid_minus_acc(pos_logits, baseline_preds)
             fid_plus_probs.append(fid_plus_prob_metric)
             fid_minus_probs.append(fid_minus_prob_metric)
             fid_plus_accs.append(fid_plus_acc_metric)
@@ -214,6 +149,7 @@ class Selector(nn.Module):
     def test_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
+        self.baseline.eval()
         self.eval()
         self_losses, sparsities = [], []
         pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
@@ -239,10 +175,10 @@ class Selector(nn.Module):
             pos_metrics.append(pos_metric.item())
             neg_metrics.append(neg_metric.item())
             baseline_preds = self.baseline(data)
-            fid_plus_prob_metric = fid_plus_prob(pos_logits, baseline_preds)
-            fid_minus_prob_metric = fid_minus_prob(neg_logits, baseline_preds)
-            fid_plus_acc_metric = fid_plus_acc(pos_logits, baseline_preds)
-            fid_minus_acc_metric = fid_minus_acc(neg_logits, baseline_preds)
+            fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_preds)
+            fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_preds)
+            fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_preds)
+            fid_minus_acc_metric = fid_minus_acc(pos_logits, baseline_preds)
             fid_plus_probs.append(fid_plus_prob_metric)
             fid_minus_probs.append(fid_minus_prob_metric)
             fid_plus_accs.append(fid_plus_acc_metric)
@@ -262,6 +198,7 @@ class Selector(nn.Module):
     def predict_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
+        self.baseline.eval()
         self.eval()
         y_probs, y_masks, explanations = [], [], []
         pos_preds, neg_preds, baseline_preds, y_trues = [], [], [], []

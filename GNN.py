@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from torchmetrics import Accuracy, MeanAbsoluteError
 from GNLayer import GNLayer
+from utilities import tensor_to_list
 
 class MLPBlock(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -166,6 +167,6 @@ class GNN(nn.Module):
           y_pred = F.softmax(logits, dim=1)
         elif self.task_type == 'regression':
           y_pred = logits
-        y_preds.append(y_pred.detach().cpu().numpy())
-        y_trues.append(data.y.detach().cpu().numpy())
+        y_preds += tensor_to_list(y_pred)
+        y_trues += tensor_to_list(data.y)
       return y_preds, y_trues

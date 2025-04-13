@@ -5,18 +5,17 @@ import numpy as np
 import networkx as nx
 import torch
 from BAMotifsDataset import BAMotifsDataset
-# from BAMotifsVolumeDataset import BAMotifsVolumeDataset
-# from AlkaneCarbonylDataset import AlkaneCarbonylDataset
-# from BenzeneDataset import BenzeneDataset
-# from FluorideCarbonylDataset import FluorideCarbonylDataset
-# from torch_geometric.datasets import GNNBenchmarkDataset
+from BAMotifsVolumeDataset import BAMotifsVolumeDataset
+from AlkaneCarbonylDataset import AlkaneCarbonylDataset
+from BenzeneDataset import BenzeneDataset
+from FluorideCarbonylDataset import FluorideCarbonylDataset
+from torch_geometric.datasets import GNNBenchmarkDataset
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 from torch_geometric.utils import to_networkx
 from GNN import GNN
-from Explainer import Selector, apply_mask, random_mask
+from Explainer import Selector, apply_mask
 from sklearn.metrics import confusion_matrix
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tensorboardX import SummaryWriter
@@ -34,7 +33,7 @@ np.random.seed(seed)
 # set data path and log path
 data_path = f"{config['data_path']}/{config['dataset']}"
 os.makedirs(data_path, exist_ok=True)
-log_path = f"{config['log_path']}/{config['dataset']}"
+log_path = f"{config['log_path']}/final/{config['dataset']}"
 os.makedirs(log_path, exist_ok=True)
 
 
@@ -48,27 +47,27 @@ with open(f'{log_path}/config.yaml', 'w') as f:
 # load dataset
 if config['dataset'] == 'BAMotifs':
     dataset = BAMotifsDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
-# elif config['dataset'] == 'BAMotifsVolume':
-#     dataset = BAMotifsVolumeDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
-# elif config['dataset'] == 'AlkaneCarbonyl':
-#     dataset = AlkaneCarbonylDataset(data_path)
-# elif config['dataset'] == 'Benzene':
-#     dataset = BenzeneDataset(data_path)
-# elif config['dataset'] == 'FluorideCarbonyl':
-#     dataset = FluorideCarbonylDataset(data_path)
-# elif config['dataset'] == 'MNIST':
-#     class SuperPixelTransform(object):
-#         def __call__(self, data):
-#             data = T.ToUndirected()(data)
-#             data.x = torch.cat([data.x, data.pos], dim=1)
-#             data.edge_attr = data.edge_attr.unsqueeze(-1)
-#             data.true =  torch.ones_like(data.x[:, 0])
-#             return data
-#     dataset = GNNBenchmarkDataset(
-#         data_path,
-#         config['dataset'],
-#         pre_transform=SuperPixelTransform(),
-#     )
+elif config['dataset'] == 'BAMotifsVolume':
+    dataset = BAMotifsVolumeDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
+elif config['dataset'] == 'AlkaneCarbonyl':
+    dataset = AlkaneCarbonylDataset(data_path)
+elif config['dataset'] == 'Benzene':
+    dataset = BenzeneDataset(data_path)
+elif config['dataset'] == 'FluorideCarbonyl':
+    dataset = FluorideCarbonylDataset(data_path)
+elif config['dataset'] == 'MNIST':
+    class SuperPixelTransform(object):
+        def __call__(self, data):
+            data = T.ToUndirected()(data)
+            data.x = torch.cat([data.x, data.pos], dim=1)
+            data.edge_attr = data.edge_attr.unsqueeze(-1)
+            data.true =  torch.ones_like(data.x[:, 0])
+            return data
+    dataset = GNNBenchmarkDataset(
+        data_path,
+        config['dataset'],
+        pre_transform=SuperPixelTransform(),
+    )
 else:
     raise ValueError(f"Dataset {config['dataset']} not supported")
 
@@ -105,15 +104,6 @@ baseline = GNN(
 
 print('Baseline model:\n', baseline)
 
-if config['task_type'] == 'classification':
-    y_pred, y_true = baseline.predict_batch(test_loader)
-    cm = confusion_matrix(y_true, y_pred)
-    sns.heatmap(cm, annot=True, fmt='d')
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.savefig(f'{log_path}/baseline_cm_initial.png')
-    plt.clf()
-
 # train baseline model
 if config['train_baseline']:
     best_val_acc = float('inf') if config['task_type'] == 'regression' else 0
@@ -133,70 +123,8 @@ if config['train_baseline']:
         writer.add_scalar('BASELINE/val_loss', val_loss, epoch)
         writer.add_scalar('BASELINE/val_acc', val_acc, epoch)
 
-        if config['task_type'] == 'classification':
-            # see accuracy if ground truth was used
-            metrics = []
-            cms = []
-            for data in val_loader:
-                data = data.to(baseline.device)
-                data = apply_mask(data, data.true.unsqueeze(1))
-                logits = baseline(data)
-                metric = baseline.metric(logits, data.y)
-                metrics.append(metric.item())
-                cm = confusion_matrix(data.y.cpu().numpy(), logits.argmax(dim=1).cpu().numpy())
-                cms.append(cm)
-            cms = sum(cms)
-            if epoch % 20 == 0:
-                sns.heatmap(cms, annot=True, fmt='d')
-                plt.xlabel('Predicted')
-                plt.ylabel('True')
-                plt.savefig(f'{log_path}/baseline_cm_true_{epoch}.png')
-                plt.clf()
-            writer.add_scalar('BASELINE/baseline_val_acc_true', sum(metrics) / len(metrics), epoch)
-            # see accuracy if random mask was used
-            metrics = []
-            cms = []
-            for data in val_loader:
-                data = data.to(baseline.device)
-                data = apply_mask(data, random_mask(data))
-                logits = baseline(data)
-                metric = baseline.metric(logits, data.y)
-                metrics.append(metric.item())
-                cm = confusion_matrix(data.y.cpu().numpy(), logits.argmax(dim=1).cpu().numpy())
-                cms.append(cm)
-            cms = sum(cms)
-            if epoch % 20 == 0:
-                sns.heatmap(cms, annot=True, fmt='d')
-                plt.xlabel('Predicted')
-                plt.ylabel('True')
-                plt.savefig(f'{log_path}/baseline_cm_random_{epoch}.png')
-                plt.clf()
-            writer.add_scalar('BASELINE/baseline_val_acc_random', sum(metrics) / len(metrics), epoch)
-            # save tsne plot
-            if epoch % 20 == 0:
-                # save tsne plot if true mask was used
-                for data in val_loader:
-                    data = data.to(baseline.device)
-                    data = apply_mask(data, data.true.unsqueeze(1))
-                    logits = baseline(data)
-                    break
-                tsne = TSNE(n_components=2).fit_transform(logits.cpu().detach().numpy())
-                plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
-                plt.savefig(f'{log_path}/baseline_tsne_true_{epoch}.png')
-                plt.clf()
-                # save tsne plot if random mask was used
-                for data in val_loader:
-                    data = data.to(baseline.device)
-                    data = apply_mask(data, random_mask(data))
-                    logits = baseline(data)
-                    break
-                tsne = TSNE(n_components=2).fit_transform(logits.cpu().detach().numpy())
-                plt.scatter(tsne[:, 0], tsne[:, 1], c=data.y.cpu().numpy())
-                plt.savefig(f'{log_path}/baseline_tsne_random_{epoch}.png')
-                plt.clf()
-
-baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
-# baseline.load_state_dict(torch.load("logs/BAMotifs/run_1742497341/baseline.pt", weights_only=False))
+# baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
+baseline.load_state_dict(torch.load("logs/final/BAMotifs/run_1744564105/baseline.pt", weights_only=False))
 val_loss, val_acc = baseline.test_batch(val_loader)
 print(f'Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}')
 test_loss, test_acc = baseline.test_batch(test_loader)
@@ -205,7 +133,8 @@ print(f'Test loss: {test_loss:.4f}, Test acc: {test_acc:.4f}')
 # plot confusion matrix
 if config['task_type'] == 'classification':
     y_preds, y_trues = baseline.predict_batch(test_loader)
-    cm = confusion_matrix(y_trues, y_preds.argmax(axis=1))
+    y_preds = [pred.argmax() for pred in y_preds]
+    cm = confusion_matrix(y_trues, y_preds)
     sns.heatmap(cm, annot=True, fmt='d')
     plt.xlabel('Predicted')
     plt.ylabel('True')
@@ -249,6 +178,7 @@ neg_predictor = GNN(
 
 # define selector
 selector = Selector(
+    baseline=baseline,
     pos_predictor=pos_predictor,
     neg_predictor=neg_predictor,
     sparsity=config['sparsity'],
@@ -258,43 +188,43 @@ selector = Selector(
 print('Selector model:\n', selector)
 
 if config['train_selector']:
-    best_val_acc = 0
-    train_sel = True
-    train_pred = True
+    best_val_fidelity_diff = 0
     for epoch in range(config['epochs']):
-        # in every 5 epoch, we switch if the selector is training or the predictors are training
-        # if epoch % 5 == 4:
-        #     train_sel = True
-        #     train_pred = False
-        # else:
-        #     train_sel = False
-        #     train_pred = True
-        train_loss, train_pos_loss, train_neg_loss, train_mask_size, train_pos_metric, train_neg_metric = selector.train_batch(train_loader, train_sel=train_sel, train_pred=train_pred)
-        val_loss, val_pos_loss, val_neg_loss, val_mask_size, val_pos_metric, val_neg_metric = selector.test_batch(val_loader)
-        if best_val_acc < val_pos_metric:
-            best_val_acc = val_pos_metric
-            print(f'Best validation accuracy updated: {best_val_acc:.4f}, saving selector...')
+        train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc = selector.train_batch(train_loader)
+        val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc = selector.test_batch(val_loader)
+        val_fidelity_diff = val_fid_plus_probs - val_fid_minus_probs
+        if val_fidelity_diff > best_val_fidelity_diff and val_sparsity < config['sparsity']:
+            best_val_fidelity_diff = val_fidelity_diff
+            print(f'Best validation fidelity difference updated: {best_val_fidelity_diff:.4f}, saving selector...')
             torch.save(selector.state_dict(), os.path.join(log_path, 'selector.pt'))
         if config['print_results']:
-            print(f'Epoch: {epoch}, Train loss: {train_loss:.4f}, Train pos loss: {train_pos_loss:.4f}, Train neg loss: {train_neg_loss:.4f}, Train mask size: {train_mask_size:.4f}, Train pos metric: {train_pos_metric:.4f}, Train neg metric: {train_neg_metric:.4f}')
-            print(f'Epoch: {epoch}, Val loss: {val_loss:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val mask size: {val_mask_size:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}')
+            print(f'Epoch: {epoch}, Train loss: {train_loss:.4f}, Train sparsity: {train_sparsity:.4f}, Train pos loss: {train_pos_loss:.4f}, Train neg loss: {train_neg_loss:.4f}, Train pos metric: {train_pos_metric:.4f}, Train neg metric: {train_neg_metric:.4f}, Train fid plus probs: {train_fid_plus_probs:.4f}, Train fid minus probs: {train_fid_minus_probs:.4f}, Train fid plus acc: {train_fid_plus_acc:.4f}, Train fid minus acc: {train_fid_minus_acc:.4f}')
+            print(f'Epoch: {epoch}, Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}')
         writer.add_scalar('SELECTOR/train_loss', train_loss, epoch)
+        writer.add_scalar('SELECTOR/train_sparsity', train_sparsity, epoch)
         writer.add_scalar('SELECTOR/train_pos_loss', train_pos_loss, epoch)
         writer.add_scalar('SELECTOR/train_neg_loss', train_neg_loss, epoch)
-        writer.add_scalar('SELECTOR/train_mask_size', train_mask_size, epoch)
         writer.add_scalar('SELECTOR/train_pos_metric', train_pos_metric, epoch)
         writer.add_scalar('SELECTOR/train_neg_metric', train_neg_metric, epoch)
+        writer.add_scalar('SELECTOR/train_fid_plus_probs', train_fid_plus_probs, epoch)
+        writer.add_scalar('SELECTOR/train_fid_minus_probs', train_fid_minus_probs, epoch)
+        writer.add_scalar('SELECTOR/train_fid_plus_acc', train_fid_plus_acc, epoch)
+        writer.add_scalar('SELECTOR/train_fid_minus_acc', train_fid_minus_acc, epoch)
         writer.add_scalar('SELECTOR/val_loss', val_loss, epoch)
         writer.add_scalar('SELECTOR/val_pos_loss', val_pos_loss, epoch)
         writer.add_scalar('SELECTOR/val_neg_loss', val_neg_loss, epoch)
-        writer.add_scalar('SELECTOR/val_mask_size', val_mask_size, epoch)
         writer.add_scalar('SELECTOR/val_pos_metric', val_pos_metric, epoch)
         writer.add_scalar('SELECTOR/val_neg_metric', val_neg_metric, epoch)
+        writer.add_scalar('SELECTOR/val_fid_plus_probs', val_fid_plus_probs, epoch)
+        writer.add_scalar('SELECTOR/val_fid_minus_probs', val_fid_minus_probs, epoch)
+        writer.add_scalar('SELECTOR/val_fid_plus_acc', val_fid_plus_acc, epoch)
+        writer.add_scalar('SELECTOR/val_fid_minus_acc', val_fid_minus_acc, epoch)
 
 selector.load_state_dict(torch.load(os.path.join(log_path, 'selector.pt'), weights_only=False))
-# selector.load_state_dict(torch.load("logs/BAMotifs/run_1742507632/selector.pt", weights_only=False))
+# selector.load_state_dict(torch.load("logs/final/BAMotifs/run_1744557584//selector.pt", weights_only=False))
 for sparsity in [0.1, 0.2, 0.3, 0.4, 0.5]:
-    val_loss, val_pos_loss, val_neg_loss, val_mask_size, val_pos_metric, val_neg_metric = selector.test_batch(val_loader, sparsity=sparsity)
-    print(f'Sparsity: {sparsity:.4f}, Val loss: {val_loss:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val mask size: {val_mask_size:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}')
-    test_loss, test_pos_loss, test_neg_loss, test_mask_size, test_pos_metric, test_neg_metric = selector.test_batch(test_loader, sparsity=sparsity)
-    print(f'Sparsity: {sparsity:.4f}, Test loss: {test_loss:.4f}, Test pos loss: {test_pos_loss:.4f}, Test neg loss: {test_neg_loss:.4f}, Test mask size: {test_mask_size:.4f}, Test pos metric: {test_pos_metric:.4f}, Test neg metric: {test_neg_metric:.4f}')
+    val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc = selector.test_batch(val_loader)
+    test_loss, test_sparsity, test_pos_loss, test_neg_loss, test_pos_metric, test_neg_metric, test_fid_plus_probs, test_fid_minus_probs, test_fid_plus_acc, test_fid_minus_acc = selector.test_batch(test_loader)
+    print(f'Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}')
+    print(f'Test loss: {test_loss:.4f}, Test sparsity: {test_sparsity:.4f}, Test pos loss: {test_pos_loss:.4f}, Test neg loss: {test_neg_loss:.4f}, Test pos metric: {test_pos_metric:.4f}, Test neg metric: {test_neg_metric:.4f}, Test fid plus probs: {test_fid_plus_probs:.4f}, Test fid minus probs: {test_fid_minus_probs:.4f}, Test fid plus acc: {test_fid_plus_acc:.4f}, Test fid minus acc: {test_fid_minus_acc:.4f}')
+
