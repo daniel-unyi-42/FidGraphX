@@ -163,7 +163,7 @@ class GNN(nn.Module):
           data.y = data.y.unsqueeze(1)
         logits = self(data)
         if self.task_type == 'classification':
-          y_pred = logits.argmax(dim=1)
+          y_pred = F.softmax(logits, dim=1)
         elif self.task_type == 'regression':
           y_pred = logits
         y_preds.append(y_pred)
