@@ -205,7 +205,7 @@ print(f'Test loss: {test_loss:.4f}, Test acc: {test_acc:.4f}')
 # plot confusion matrix
 if config['task_type'] == 'classification':
     y_preds, y_trues = baseline.predict_batch(test_loader)
-    cm = confusion_matrix(y_trues, y_preds)
+    cm = confusion_matrix(y_trues, y_preds.argmax(axis=1))
     sns.heatmap(cm, annot=True, fmt='d')
     plt.xlabel('Predicted')
     plt.ylabel('True')
