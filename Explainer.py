@@ -8,18 +8,19 @@ from utilities import apply_mask, tensor_to_list, tensor_batch_to_list, fid_plus
 class Selector(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
         super(Selector, self).__init__()
+        self.task_type = baseline.task_type
         self.sparsity = sparsity
         self.reward_coeff = reward_coeff
         self.baseline = baseline
         self.pos_predictor = pos_predictor
         self.neg_predictor = neg_predictor
-        self.conv_type = pos_predictor.conv_type
-        self.learning_rate = pos_predictor.learning_rate
-        self.in_channels = pos_predictor.in_channels
-        self.num_layers = pos_predictor.num_layers
-        self.hidden_channels = pos_predictor.hidden_channels
-        self.edge_dim = pos_predictor.edge_dim
-        self.use_norm = pos_predictor.use_norm
+        self.conv_type = baseline.conv_type
+        self.learning_rate = baseline.learning_rate
+        self.in_channels = baseline.in_channels
+        self.num_layers = baseline.num_layers
+        self.hidden_channels = baseline.hidden_channels
+        self.edge_dim = baseline.edge_dim
+        self.use_norm = baseline.use_norm
         self.conv0 = GNBlock(
             self.conv_type,
             self.in_channels,
@@ -76,7 +77,7 @@ class Selector(nn.Module):
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
-            if self.pos_predictor.task_type == 'regression':
+            if self.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             # train pos_predictor and neg_predictor
             self.eval()
@@ -156,7 +157,7 @@ class Selector(nn.Module):
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
-            if self.pos_predictor.task_type == 'regression':
+            if self.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             probs = torch.sigmoid(self(data))
             mask = (probs > 0.5).float()
@@ -204,7 +205,7 @@ class Selector(nn.Module):
         pos_preds, neg_preds, baseline_preds, y_trues = [], [], [], []
         for data in loader:
             data = data.to(self.device)
-            if self.pos_predictor.task_type == 'regression':
+            if self.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             probs = torch.sigmoid(self(data))
             mask = (probs > 0.5).float()
