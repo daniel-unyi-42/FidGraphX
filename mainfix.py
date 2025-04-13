@@ -228,3 +228,34 @@ for sparsity in [0.1, 0.2, 0.3, 0.4, 0.5]:
     print(f'Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}')
     print(f'Test loss: {test_loss:.4f}, Test sparsity: {test_sparsity:.4f}, Test pos loss: {test_pos_loss:.4f}, Test neg loss: {test_neg_loss:.4f}, Test pos metric: {test_pos_metric:.4f}, Test neg metric: {test_neg_metric:.4f}, Test fid plus probs: {test_fid_plus_probs:.4f}, Test fid minus probs: {test_fid_minus_probs:.4f}, Test fid plus acc: {test_fid_plus_acc:.4f}, Test fid minus acc: {test_fid_minus_acc:.4f}')
 
+y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues = selector.predict_batch(test_loader)
+
+if config['task_type'] == 'classification':
+    pos_preds = [pred.argmax() for pred in pos_preds]
+    neg_preds = [pred.argmax() for pred in neg_preds]
+    cm_pos = confusion_matrix(y_trues, pos_preds)
+    cm_neg = confusion_matrix(y_trues, neg_preds)
+    sns.heatmap(cm_pos, annot=True, fmt='d')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.savefig(f'{log_path}/pos_predictor_cm.png')
+    plt.clf()
+    sns.heatmap(cm_neg, annot=True, fmt='d')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.savefig(f'{log_path}/neg_predictor_cm.png')
+    plt.clf()
+
+if config['task_type'] == 'regression':
+    pos_preds = [pred.item() for pred in pos_preds]
+    neg_preds = [pred.item() for pred in neg_preds]
+    plt.scatter(y_trues, pos_preds)
+    plt.xlabel('True')
+    plt.ylabel('Predicted')
+    plt.savefig(f'{log_path}/pos_predictor_scatter.png')
+    plt.clf()
+    plt.scatter(y_trues, neg_preds)
+    plt.xlabel('True')
+    plt.ylabel('Predicted')
+    plt.savefig(f'{log_path}/neg_predictor_scatter.png')
+    plt.clf()
