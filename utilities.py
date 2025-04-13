@@ -23,6 +23,8 @@ def tensor_batch_to_list(tensor, batch):
         result.append(tensor[batch == i].detach().cpu().numpy())
     return result
 
+# TODO: Fidelity metrics should support regression tasks as well
+
 def fid_plus_prob(neg_preds, baseline_preds):
     neg_preds = torch.softmax(neg_preds, dim=1)
     baseline_preds = torch.softmax(baseline_preds, dim=1)
