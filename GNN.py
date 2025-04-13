@@ -166,8 +166,6 @@ class GNN(nn.Module):
           y_pred = F.softmax(logits, dim=1)
         elif self.task_type == 'regression':
           y_pred = logits
-        y_preds.append(y_pred)
-        y_trues.append(data.y)
-      y_preds = torch.cat(y_preds).detach().cpu().numpy()
-      y_trues = torch.cat(y_trues).detach().cpu().numpy()
+        y_preds.append(y_pred.detach().cpu().numpy())
+        y_trues.append(data.y.detach().cpu().numpy())
       return y_preds, y_trues

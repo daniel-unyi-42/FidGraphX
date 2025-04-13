@@ -1,16 +1,10 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from GNN import GNBlock, MLPBlock
 from torch_geometric.data import Data
-
-
-def random_mask(data):
-    probs = torch.rand((data.num_nodes, 1), device=data.x.device)
-    # rand_value = torch.rand((1,), device=data.x.device)
-    mask = (probs > 0.5).detach().float() # 0.05?
-    return mask
 
 def apply_mask(data, mask):
     x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
@@ -22,13 +16,56 @@ def apply_mask(data, mask):
         edge_attr = edge_attr[edge_mask]
     return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=data.batch, y=data.y)
 
+def tensor_to_list(tensor):
+    result = []
+    for i in range(len(tensor)):
+        result.append(tensor[i].detach().cpu().numpy())
+    return result
 
+def tensor_batch_to_list(tensor, batch):
+    result = []
+    for i in range(batch.max() + 1):
+        result.append(tensor[batch == i].detach().cpu().numpy())
+    return result
+
+def fid_plus_prob(pos_preds, baseline_preds):
+    if type(pos_preds) == list:
+        pos_preds = np.vstack(pos_preds)
+    if type(baseline_preds) == list:
+        baseline_preds = np.vstack(baseline_preds)
+    result = np.mean(np.abs(baseline_preds - pos_preds))
+    return result
+
+def fid_minus_prob(neg_preds, baseline_preds):
+    if type(neg_preds) == list:
+        neg_preds = np.vstack(neg_preds)
+    if type(baseline_preds) == list:
+        baseline_preds = np.vstack(baseline_preds)
+    result = np.mean(np.abs(baseline_preds - neg_preds))
+    return result
+
+def fid_plus_acc(pos_preds, baseline_preds):
+    if type(pos_preds) == list:
+        pos_preds = np.vstack(pos_preds)
+    if type(baseline_preds) == list:
+        baseline_preds = np.vstack(baseline_preds)
+    result = 1.0 - np.mean(np.argmax(pos_preds, axis=1) == np.argmax(baseline_preds, axis=1))
+    return result
+
+def fid_minus_acc(neg_preds, baseline_preds):
+    if type(neg_preds) == list:
+        neg_preds = np.vstack(neg_preds)
+    if type(baseline_preds) == list:
+        baseline_preds = np.vstack(baseline_preds)
+    result = 1.0 - np.mean(np.argmax(neg_preds, axis=1) == np.argmax(baseline_preds, axis=1))
+    return result
 
 class Selector(nn.Module):
-    def __init__(self, pos_predictor, neg_predictor, sparsity, reward_coeff):
+    def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
         super(Selector, self).__init__()
         self.sparsity = sparsity
         self.reward_coeff = reward_coeff
+        self.baseline = baseline
         self.pos_predictor = pos_predictor
         self.neg_predictor = neg_predictor
         self.conv_type = pos_predictor.conv_type
@@ -62,6 +99,18 @@ class Selector(nn.Module):
         self.to(self.device)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         self.criterion = self.loss
+        self.metrics = {
+            'self_loss': self.loss,
+            'sparsity': self.sparsity,
+            'pos_loss': self.pos_predictor.criterion,
+            'neg_loss': self.neg_predictor.criterion,
+            'pos_metric': self.pos_predictor.metric,
+            'neg_metric': self.neg_predictor.metric,
+            'fid_plus_prob': fid_plus_prob,
+            'fid_minus_prob': fid_minus_prob,
+            'fid_plus_acc': fid_plus_acc,
+            'fid_minus_acc': fid_minus_acc,
+        }
     
     def loss(self, reward, y_true, y_pred, batch):
         # the reward is calculated for each graph
@@ -87,143 +136,157 @@ class Selector(nn.Module):
         x = self.head(x)
         return x
 
-    def train_batch(self, loader, train_sel=True, train_pred=True):
-        pos_losses = []
-        neg_losses = []
-        sel_losses = []
-        mask_sizes = []
-        pos_metrics = []
-        neg_metrics = []
+    def train_batch(self, loader):
+        self_losses, sparsities = [], []
+        pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], [], [], []
+        fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
             if self.pos_predictor.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             # train pos_predictor and neg_predictor
-            if train_pred:
-                self.eval()
-                self.pos_predictor.train()
-                self.pos_predictor.optimizer.zero_grad()
-                self.neg_predictor.train()
-                self.neg_predictor.optimizer.zero_grad()
-                with torch.no_grad():
-                    probs = torch.sigmoid(self(data))
-                    mask = torch.bernoulli(probs)
-                pos_logits = self.pos_predictor(apply_mask(data, mask))
-                pos_loss = self.pos_predictor.criterion(pos_logits, data.y)
-                pos_loss.backward()
-                self.pos_predictor.optimizer.step()
-                neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                neg_loss = self.neg_predictor.criterion(neg_logits, data.y)
-                neg_loss.backward()
-                self.neg_predictor.optimizer.step()
-                with torch.no_grad():
-                    reward = -(pos_loss - neg_loss)
-                    sel_loss = self.loss(reward, mask, probs, data.batch)
-            # train selector
-            if train_sel:
-                self.pos_predictor.eval()
-                self.neg_predictor.eval()
-                self.train()
-                self.optimizer.zero_grad()
-                with torch.no_grad():
-                    probs = torch.sigmoid(self(data))
-                    mask = torch.bernoulli(probs)
-                    pos_logits = self.pos_predictor(apply_mask(data, mask))
-                    neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                    pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
-                    neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
-                    reward = -(pos_loss - neg_loss)
+            self.eval()
+            self.pos_predictor.train()
+            self.pos_predictor.optimizer.zero_grad()
+            self.neg_predictor.train()
+            self.neg_predictor.optimizer.zero_grad()
+            with torch.no_grad():
                 probs = torch.sigmoid(self(data))
-                sel_loss = self.criterion(reward, mask, probs, data.batch)
-                sel_loss.backward()
-                self.optimizer.step()
+                mask = torch.bernoulli(probs)
+            pos_logits = self.pos_predictor(apply_mask(data, mask))
+            pos_loss = self.pos_predictor.criterion(pos_logits, data.y)
+            pos_loss.backward()
+            self.pos_predictor.optimizer.step()
+            neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+            neg_loss = self.neg_predictor.criterion(neg_logits, data.y)
+            neg_loss.backward()
+            self.neg_predictor.optimizer.step()
+            with torch.no_grad():
+                reward = -(pos_loss - neg_loss)
+                self_loss = self.criterion(reward, mask, probs, data.batch)
+            # train selector
+            self.pos_predictor.eval()
+            self.neg_predictor.eval()
+            self.train()
+            self.optimizer.zero_grad()
+            with torch.no_grad():
+                probs = torch.sigmoid(self(data))
+                mask = torch.bernoulli(probs)
+                pos_logits = self.pos_predictor(apply_mask(data, mask))
+                neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+                pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
+                neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
+                reward = -(pos_loss - neg_loss)
+            probs = torch.sigmoid(self(data))
+            self_loss = self.criterion(reward, mask, probs, data.batch)
+            self_loss.backward()
+            self.optimizer.step()
             # record metrics
-            sel_losses.append(sel_loss.item())
+            self_losses.append(self_loss.item())
+            sparsities.append(mask.mean().item())
             pos_losses.append(pos_loss.mean().item())
             neg_losses.append(neg_loss.mean().item())
-            mask_sizes.append(torch.sum(mask).item() / len(mask))
             pos_metric = self.pos_predictor.metric(pos_logits, data.y)
             neg_metric = self.neg_predictor.metric(neg_logits, data.y)
             pos_metrics.append(pos_metric.item())
             neg_metrics.append(neg_metric.item())
-        return sum(sel_losses) / len(sel_losses), \
-            sum(pos_losses) / len(pos_losses), \
-                sum(neg_losses) / len(neg_losses), \
-                    sum(mask_sizes) / len(mask_sizes), \
+            baseline_preds = self.baseline(data)
+            fid_plus_prob_metric = fid_plus_prob(pos_logits, baseline_preds)
+            fid_minus_prob_metric = fid_minus_prob(neg_logits, baseline_preds)
+            fid_plus_acc_metric = fid_plus_acc(pos_logits, baseline_preds)
+            fid_minus_acc_metric = fid_minus_acc(neg_logits, baseline_preds)
+            fid_plus_probs.append(fid_plus_prob_metric)
+            fid_minus_probs.append(fid_minus_prob_metric)
+            fid_plus_accs.append(fid_plus_acc_metric)
+            fid_minus_accs.append(fid_minus_acc_metric)
+        return sum(self_losses) / len(self_losses), \
+            sum(sparsities) / len(sparsities), \
+                sum(pos_losses) / len(pos_losses), \
+                    sum(neg_losses) / len(neg_losses), \
                         sum(pos_metrics) / len(pos_metrics), \
-                            sum(neg_metrics) / len(neg_metrics)
+                            sum(neg_metrics) / len(neg_metrics), \
+                                sum(fid_plus_probs) / len(fid_plus_probs), \
+                                    sum(fid_minus_probs) / len(fid_minus_probs), \
+                                        sum(fid_plus_accs) / len(fid_plus_accs), \
+                                            sum(fid_minus_accs) / len(fid_minus_accs)
 
     @torch.no_grad()
-    def test_batch(self, loader, sparsity=None):
+    def test_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.eval()
-        pos_losses = []
-        neg_losses = []
-        sel_losses = []
-        mask_sizes = []
-        pos_metrics = []
-        neg_metrics = []
+        self_losses, sparsities = [], []
+        pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
+        fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
             if self.pos_predictor.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             probs = torch.sigmoid(self(data))
-            if sparsity is None:
-                mask = (probs > 0.5).float()
-            else:
-                thresold = torch.quantile(probs, 1.0 - sparsity)
-                mask = (probs > thresold).float()
+            mask = (probs > 0.5).float()
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
             pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
             neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
             reward = -(pos_loss - neg_loss)
-            sel_loss = self.loss(reward, mask, probs, data.batch)
+            self_loss = self.criterion(reward, mask, probs, data.batch)
+            self_losses.append(self_loss.item())
+            sparsities.append(mask.mean().item())
             pos_losses.append(pos_loss.mean().item())
             neg_losses.append(neg_loss.mean().item())
-            sel_losses.append(sel_loss.item())
-            mask_sizes.append(torch.sum(mask).item() / len(mask))
             pos_metric = self.pos_predictor.metric(pos_logits, data.y)
             neg_metric = self.neg_predictor.metric(neg_logits, data.y)
             pos_metrics.append(pos_metric.item())
             neg_metrics.append(neg_metric.item())
-        return sum(sel_losses) / len(sel_losses), \
-            sum(pos_losses) / len(pos_losses), \
-                sum(neg_losses) / len(neg_losses), \
-                    sum(mask_sizes) / len(mask_sizes), \
+            baseline_preds = self.baseline(data)
+            fid_plus_prob_metric = fid_plus_prob(pos_logits, baseline_preds)
+            fid_minus_prob_metric = fid_minus_prob(neg_logits, baseline_preds)
+            fid_plus_acc_metric = fid_plus_acc(pos_logits, baseline_preds)
+            fid_minus_acc_metric = fid_minus_acc(neg_logits, baseline_preds)
+            fid_plus_probs.append(fid_plus_prob_metric)
+            fid_minus_probs.append(fid_minus_prob_metric)
+            fid_plus_accs.append(fid_plus_acc_metric)
+            fid_minus_accs.append(fid_minus_acc_metric)
+        return sum(self_losses) / len(self_losses), \
+            sum(sparsities) / len(sparsities), \
+                sum(pos_losses) / len(pos_losses), \
+                    sum(neg_losses) / len(neg_losses), \
                         sum(pos_metrics) / len(pos_metrics), \
-                            sum(neg_metrics) / len(neg_metrics)
+                            sum(neg_metrics) / len(neg_metrics), \
+                                sum(fid_plus_probs) / len(fid_plus_probs), \
+                                    sum(fid_minus_probs) / len(fid_minus_probs), \
+                                        sum(fid_plus_accs) / len(fid_plus_accs), \
+                                            sum(fid_minus_accs) / len(fid_minus_accs)
 
     @torch.no_grad()
-    def predict_batch(self, loader, sparsity=None):
+    def predict_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.eval()
-        y_probs = []
-        y_masks = []
-        pos_preds = []
-        neg_preds = []
-        y_trues = []
-        explanations = []
-        batchlister = lambda tensor, batch: [tensor[batch == i].detach().cpu().numpy() for i in range(batch.max() + 1)]
-        lister = lambda tensor: [tensor[i].detach().cpu().numpy() for i in range(len(tensor))]
+        y_probs, y_masks, explanations = [], [], []
+        pos_preds, neg_preds, baseline_preds, y_trues = [], [], [], []
         for data in loader:
             data = data.to(self.device)
             if self.pos_predictor.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             probs = torch.sigmoid(self(data))
-            y_probs += batchlister(probs, data.batch)
-            if sparsity is None:
-                mask = (probs > 0.5).float()
-            else:
-                thresold = torch.quantile(probs, 1.0 - sparsity)
-                mask = (probs > thresold).float()
-            y_masks += batchlister(mask, data.batch)
-            pos_out = F.softmax(self.pos_predictor(apply_mask(data, mask)), dim=1)
-            pos_preds += lister(pos_out)
-            neg_out = F.softmax(self.neg_predictor(apply_mask(data, 1.0 - mask)), dim=1)
-            neg_preds += lister(neg_out)
-            y_trues += lister(data.y)
-            explanations += batchlister(data.true, data.batch)
-        return y_probs, y_masks, pos_preds, neg_preds, y_trues, explanations
+            mask = (probs > 0.5).float()
+            y_probs += tensor_batch_to_list(probs, data.batch)
+            y_masks += tensor_batch_to_list(mask, data.batch)
+            explanations += tensor_batch_to_list(data.true, data.batch)
+            pos_logits = self.pos_predictor(apply_mask(data, mask))
+            neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+            baseline_logits = self.baseline(data)
+            if self.task_type == 'classification':
+                pos_pred = F.softmax(pos_logits, dim=1)
+                neg_pred = F.softmax(neg_logits, dim=1)
+                baseline_pred = F.softmax(baseline_logits, dim=1)
+            elif self.task_type == 'regression':
+                pos_pred = pos_logits
+                neg_pred = neg_logits
+                baseline_pred = baseline_logits
+            pos_preds += tensor_to_list(pos_pred)
+            neg_preds += tensor_to_list(neg_pred)
+            baseline_preds += tensor_to_list(baseline_pred)
+            y_trues += tensor_to_list(data.y)
+        return y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues
