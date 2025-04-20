@@ -5,6 +5,8 @@ import numpy as np
 import networkx as nx
 import torch
 from BAMotifsDataset import BAMotifsDataset
+from BARedundantMotifsDataset import BARedundantMotifsDataset
+#
 from BAMotifsVolumeDataset import BAMotifsVolumeDataset
 from AlkaneCarbonylDataset import AlkaneCarbonylDataset
 from BenzeneDataset import BenzeneDataset
@@ -46,7 +48,10 @@ with open(f'{log_path}/config.yaml', 'w') as f:
 
 # load dataset
 if config['dataset'] == 'BAMotifs':
-    dataset = BAMotifsDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
+    dataset = BAMotifsDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.2)
+
+elif config['dataset'] == 'BARedundantMotifs':
+    dataset = BARedundantMotifsDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
 elif config['dataset'] == 'BAMotifsVolume':
     dataset = BAMotifsVolumeDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
 elif config['dataset'] == 'AlkaneCarbonyl':
@@ -84,6 +89,9 @@ train_set, val_set, test_set = torch.utils.data.random_split(
 train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True)
 val_loader = DataLoader(val_set, batch_size=len(val_set))
 test_loader = DataLoader(test_set, batch_size=len(test_set))
+
+# for data in train_loader:
+#     print(data.true.sum().item() / data.num_nodes)
 
 num_node_features = dataset[0].x.shape[1]
 num_edge_features = 0 if dataset[0].edge_attr is None else dataset[0].edge_attr.shape[1]
@@ -189,8 +197,12 @@ print('Selector model:\n', selector)
 
 if config['train_selector']:
     best_val_fidelity_diff = 0
+    train_pred = True
+    train_sel = False
     for epoch in range(config['epochs']):
-        train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc = selector.train_batch(train_loader)
+        train_pred = not train_pred
+        train_sel = not train_sel
+        train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc = selector.train_batch(train_loader, train_pred=True, train_sel=True)
         val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc = selector.test_batch(val_loader)
         val_fidelity_diff = val_fid_plus_probs - val_fid_minus_probs
         if val_fidelity_diff > best_val_fidelity_diff and val_sparsity < config['sparsity']:
@@ -211,6 +223,7 @@ if config['train_selector']:
         writer.add_scalar('SELECTOR/train_fid_plus_acc', train_fid_plus_acc, epoch)
         writer.add_scalar('SELECTOR/train_fid_minus_acc', train_fid_minus_acc, epoch)
         writer.add_scalar('SELECTOR/val_loss', val_loss, epoch)
+        writer.add_scalar('SELECTOR/val_sparsity', val_sparsity, epoch)
         writer.add_scalar('SELECTOR/val_pos_loss', val_pos_loss, epoch)
         writer.add_scalar('SELECTOR/val_neg_loss', val_neg_loss, epoch)
         writer.add_scalar('SELECTOR/val_pos_metric', val_pos_metric, epoch)

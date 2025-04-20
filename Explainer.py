@@ -58,7 +58,7 @@ class Selector(nn.Module):
         L1_norm = torch.mean(y_pred) # gnn.global_mean_pool(y_pred, batch)[batch]
         assert 0 <= L1_norm <= 1
         # the selection budget is the difference between the sparsity target and the L1 norm
-        selection_budget = L1_norm # torch.abs(self.sparsity - L1_norm)
+        selection_budget = torch.abs(self.sparsity - L1_norm)
         # the custom actor loss is the sum of the reward and the selection budget
         custom_actor_loss = (reward + self.reward_coeff * selection_budget) * cross_entropy
         return torch.mean(custom_actor_loss)
@@ -70,7 +70,7 @@ class Selector(nn.Module):
         x = self.head(x)
         return x
 
-    def train_batch(self, loader):
+    def train_batch(self, loader, train_pred=True, train_sel=True):
         self.baseline.eval()
         self_losses, sparsities = [], []
         pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
@@ -80,42 +80,44 @@ class Selector(nn.Module):
             if self.task_type == 'regression':
                 data.y = data.y.unsqueeze(1)
             # train pos_predictor and neg_predictor
-            self.eval()
-            self.pos_predictor.train()
-            self.pos_predictor.optimizer.zero_grad()
-            self.neg_predictor.train()
-            self.neg_predictor.optimizer.zero_grad()
-            with torch.no_grad():
-                probs = torch.sigmoid(self(data))
-                mask = torch.bernoulli(probs)
-            pos_logits = self.pos_predictor(apply_mask(data, mask))
-            pos_loss = self.pos_predictor.criterion(pos_logits, data.y)
-            pos_loss.backward()
-            self.pos_predictor.optimizer.step()
-            neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-            neg_loss = self.neg_predictor.criterion(neg_logits, data.y)
-            neg_loss.backward()
-            self.neg_predictor.optimizer.step()
-            with torch.no_grad():
-                reward = -(pos_loss - neg_loss)
-                self_loss = self.criterion(reward, mask, probs, data.batch)
-            # train selector
-            self.pos_predictor.eval()
-            self.neg_predictor.eval()
-            self.train()
-            self.optimizer.zero_grad()
-            with torch.no_grad():
-                probs = torch.sigmoid(self(data))
-                mask = torch.bernoulli(probs)
+            if train_pred:
+                self.eval()
+                self.pos_predictor.train()
+                self.pos_predictor.optimizer.zero_grad()
+                self.neg_predictor.train()
+                self.neg_predictor.optimizer.zero_grad()
+                with torch.no_grad():
+                    probs = torch.sigmoid(self(data))
+                    mask = torch.bernoulli(probs)
                 pos_logits = self.pos_predictor(apply_mask(data, mask))
+                pos_loss = self.pos_predictor.criterion(pos_logits, data.y)
+                pos_loss.backward()
+                self.pos_predictor.optimizer.step()
                 neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
-                neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
-                reward = -(pos_loss - neg_loss)
-            probs = torch.sigmoid(self(data))
-            self_loss = self.criterion(reward, mask, probs, data.batch)
-            self_loss.backward()
-            self.optimizer.step()
+                neg_loss = self.neg_predictor.criterion(neg_logits, data.y)
+                neg_loss.backward()
+                self.neg_predictor.optimizer.step()
+                with torch.no_grad():
+                    reward = -(pos_loss - neg_loss)
+                    self_loss = self.criterion(reward, mask, probs, data.batch)
+            # train selector
+            if train_sel:
+                self.pos_predictor.eval()
+                self.neg_predictor.eval()
+                self.train()
+                self.optimizer.zero_grad()
+                with torch.no_grad():
+                    probs = torch.sigmoid(self(data))
+                    mask = torch.bernoulli(probs)
+                    pos_logits = self.pos_predictor(apply_mask(data, mask))
+                    neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+                    pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
+                    neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
+                    reward = -(pos_loss - neg_loss)
+                probs = torch.sigmoid(self(data))
+                self_loss = self.criterion(reward, mask, probs, data.batch)
+                self_loss.backward()
+                self.optimizer.step()
             # record metrics
             self_losses.append(self_loss.item())
             sparsities.append(mask.mean().item())
