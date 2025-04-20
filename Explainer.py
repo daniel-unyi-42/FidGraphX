@@ -77,8 +77,11 @@ class Selector(nn.Module):
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
-            if self.task_type == 'regression':
-                data.y = data.y.unsqueeze(1)
+            # if self.task_type == 'regression':
+            #     data.y = data.y.unsqueeze(1)
+            with torch.no_grad():
+                baseline_logits = self.baseline(data)
+                baseline_probs = torch.softmax(baseline_logits, dim=1)
             # train pos_predictor and neg_predictor
             if train_pred:
                 self.eval()
@@ -90,11 +93,11 @@ class Selector(nn.Module):
                     probs = torch.sigmoid(self(data))
                     mask = torch.bernoulli(probs)
                 pos_logits = self.pos_predictor(apply_mask(data, mask))
-                pos_loss = self.pos_predictor.criterion(pos_logits, data.y)
+                pos_loss = self.pos_predictor.criterion(pos_logits, baseline_probs)
                 pos_loss.backward()
                 self.pos_predictor.optimizer.step()
                 neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                neg_loss = self.neg_predictor.criterion(neg_logits, data.y)
+                neg_loss = self.neg_predictor.criterion(neg_logits, baseline_probs)
                 neg_loss.backward()
                 self.neg_predictor.optimizer.step()
                 with torch.no_grad():
@@ -111,8 +114,8 @@ class Selector(nn.Module):
                     mask = torch.bernoulli(probs)
                     pos_logits = self.pos_predictor(apply_mask(data, mask))
                     neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                    pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
-                    neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
+                    pos_loss = self.pos_predictor.criterion(pos_logits, baseline_probs, reduction='none')
+                    neg_loss = self.neg_predictor.criterion(neg_logits, baseline_probs, reduction='none')
                     reward = -(pos_loss - neg_loss)
                 probs = torch.sigmoid(self(data))
                 self_loss = self.criterion(reward, mask, probs, data.batch)
@@ -127,12 +130,10 @@ class Selector(nn.Module):
             neg_metric = self.neg_predictor.metric(neg_logits, data.y)
             pos_metrics.append(pos_metric.item())
             neg_metrics.append(neg_metric.item())
-            with torch.no_grad():
-                baseline_preds = self.baseline(data)
-            fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_preds)
-            fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_preds)
-            fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_preds)
-            fid_minus_acc_metric = fid_minus_acc(pos_logits, baseline_preds)
+            fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_logits)
+            fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_logits)
+            fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_logits)
+            fid_minus_acc_metric = fid_minus_acc(pos_logits, baseline_logits)
             fid_plus_probs.append(fid_plus_prob_metric)
             fid_minus_probs.append(fid_minus_prob_metric)
             fid_plus_accs.append(fid_plus_acc_metric)
@@ -159,25 +160,26 @@ class Selector(nn.Module):
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
         for data in loader:
             data = data.to(self.device)
-            if self.task_type == 'regression':
-                data.y = data.y.unsqueeze(1)
+            # if self.task_type == 'regression':
+            #     data.y = data.y.unsqueeze(1)
+            baseline_preds = self.baseline(data)
+            baseline_probs = torch.softmax(baseline_preds, dim=1)
             probs = torch.sigmoid(self(data))
             mask = (probs > 0.5).float()
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-            pos_loss = self.pos_predictor.criterion(pos_logits, data.y, reduction='none')
-            neg_loss = self.neg_predictor.criterion(neg_logits, data.y, reduction='none')
+            pos_loss = self.pos_predictor.criterion(pos_logits, baseline_probs, reduction='none')
+            neg_loss = self.neg_predictor.criterion(neg_logits, baseline_probs, reduction='none')
             reward = -(pos_loss - neg_loss)
             self_loss = self.criterion(reward, mask, probs, data.batch)
             self_losses.append(self_loss.item())
             sparsities.append(mask.mean().item())
             pos_losses.append(pos_loss.mean().item())
             neg_losses.append(neg_loss.mean().item())
-            pos_metric = self.pos_predictor.metric(pos_logits, data.y)
-            neg_metric = self.neg_predictor.metric(neg_logits, data.y)
+            pos_metric = self.pos_predictor.metric(pos_logits, baseline_probs)
+            neg_metric = self.neg_predictor.metric(neg_logits, baseline_probs)
             pos_metrics.append(pos_metric.item())
             neg_metrics.append(neg_metric.item())
-            baseline_preds = self.baseline(data)
             fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_preds)
             fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_preds)
             fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_preds)
@@ -207,8 +209,8 @@ class Selector(nn.Module):
         pos_preds, neg_preds, baseline_preds, y_trues = [], [], [], []
         for data in loader:
             data = data.to(self.device)
-            if self.task_type == 'regression':
-                data.y = data.y.unsqueeze(1)
+            # if self.task_type == 'regression':
+            #     data.y = data.y.unsqueeze(1)
             probs = torch.sigmoid(self(data))
             mask = (probs > 0.5).float()
             y_probs += tensor_batch_to_list(probs, data.batch)
