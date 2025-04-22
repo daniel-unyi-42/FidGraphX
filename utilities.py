@@ -1,5 +1,9 @@
 import torch
 from torch_geometric.data import Data
+# from sklearn.metrics import balanced_accuracy_score
+from sklearn.metrics import f1_score as f1_score_sklearn
+from sklearn.metrics import jaccard_score as jaccard_score_sklearn
+from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 
 def apply_mask(data, mask):
     x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
@@ -37,6 +41,27 @@ def fid_minus_prob(pos_preds, baseline_preds):
 
 def fid_plus_acc(neg_preds, baseline_preds):
     return 1.0 - (neg_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
+    # neg_labels = neg_preds.argmax(dim=1).cpu().numpy()
+    # baseline_labels = baseline_preds.argmax(dim=1).cpu().numpy()
+    # return 1.0 - balanced_accuracy_score(neg_labels, baseline_labels)
 
 def fid_minus_acc(pos_preds, baseline_preds):
     return 1.0 - (pos_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
+    # pos_labels = pos_preds.argmax(dim=1).cpu().numpy()
+    # baseline_labels = baseline_preds.argmax(dim=1).cpu().numpy()
+    # return 1.0 - balanced_accuracy_score(pos_labels, baseline_labels)
+
+def f1_score(pred_explanations, true_explanations):
+    pred_explanations = pred_explanations.detach().cpu().numpy()
+    true_explanations = true_explanations.detach().cpu().numpy()
+    return f1_score_sklearn(pred_explanations, true_explanations, average='macro')
+
+def iou_score(pred_explanations, true_explanations):
+    pred_explanations = pred_explanations.detach().cpu().numpy()
+    true_explanations = true_explanations.detach().cpu().numpy()
+    return jaccard_score_sklearn(pred_explanations, true_explanations, average='macro')
+
+def auc_score(pred_explanations, true_explanations):
+    pred_explanations = pred_explanations.detach().cpu().numpy()
+    true_explanations = true_explanations.detach().cpu().numpy()
+    return roc_auc_score_sklearn(true_explanations, pred_explanations, average='macro', multi_class='ovr')
