@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from GNN import GNBlock, MLPBlock
-from utilities import apply_mask, tensor_to_list, tensor_batch_to_list, fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc
+from utilities import apply_mask, tensor_to_list, tensor_batch_to_list, fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc, auc_score, f1_score, iou_score
 
 class Selector(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
@@ -75,6 +75,7 @@ class Selector(nn.Module):
         self_losses, sparsities = [], []
         pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
+        aucs, f1s, ious = [], [], []
         for data in loader:
             data = data.to(self.device)
             # if self.task_type == 'regression':
@@ -138,6 +139,12 @@ class Selector(nn.Module):
             fid_minus_probs.append(fid_minus_prob_metric)
             fid_plus_accs.append(fid_plus_acc_metric)
             fid_minus_accs.append(fid_minus_acc_metric)
+            auc = auc_score(probs, data.true)
+            f1 = f1_score(mask, data.true)
+            iou = iou_score(mask, data.true)
+            aucs.append(auc)
+            f1s.append(f1)
+            ious.append(iou)
         return sum(self_losses) / len(self_losses), \
             sum(sparsities) / len(sparsities), \
                 sum(pos_losses) / len(pos_losses), \
@@ -147,7 +154,10 @@ class Selector(nn.Module):
                                 sum(fid_plus_probs) / len(fid_plus_probs), \
                                     sum(fid_minus_probs) / len(fid_minus_probs), \
                                         sum(fid_plus_accs) / len(fid_plus_accs), \
-                                            sum(fid_minus_accs) / len(fid_minus_accs)
+                                            sum(fid_minus_accs) / len(fid_minus_accs), \
+                                                sum(aucs) / len(aucs), \
+                                                    sum(f1s) / len(f1s), \
+                                                        sum(ious) / len(ious)
 
     @torch.no_grad()
     def test_batch(self, loader):
@@ -158,6 +168,7 @@ class Selector(nn.Module):
         self_losses, sparsities = [], []
         pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
         fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
+        aucs, f1s, ious = [], [], []
         for data in loader:
             data = data.to(self.device)
             # if self.task_type == 'regression':
@@ -188,6 +199,12 @@ class Selector(nn.Module):
             fid_minus_probs.append(fid_minus_prob_metric)
             fid_plus_accs.append(fid_plus_acc_metric)
             fid_minus_accs.append(fid_minus_acc_metric)
+            auc = auc_score(probs, data.true)
+            f1 = f1_score(mask, data.true)
+            iou = iou_score(mask, data.true)
+            aucs.append(auc)
+            f1s.append(f1)
+            ious.append(iou)
         return sum(self_losses) / len(self_losses), \
             sum(sparsities) / len(sparsities), \
                 sum(pos_losses) / len(pos_losses), \
@@ -197,7 +214,10 @@ class Selector(nn.Module):
                                 sum(fid_plus_probs) / len(fid_plus_probs), \
                                     sum(fid_minus_probs) / len(fid_minus_probs), \
                                         sum(fid_plus_accs) / len(fid_plus_accs), \
-                                            sum(fid_minus_accs) / len(fid_minus_accs)
+                                            sum(fid_minus_accs) / len(fid_minus_accs), \
+                                                sum(aucs) / len(aucs), \
+                                                    sum(f1s) / len(f1s), \
+                                                        sum(ious) / len(ious)
 
     @torch.no_grad()
     def predict_batch(self, loader):

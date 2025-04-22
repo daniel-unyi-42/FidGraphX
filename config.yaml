@@ -16,7 +16,7 @@ batch_size: 64
 train_baseline: true
 train_selector: true
 
-sparsity: 0.2
+sparsity: 0.15
 reward_coeff: 1.0
 
 train_size: 0.8
