@@ -198,16 +198,16 @@ if config['train_selector']:
     for epoch in range(config['epochs']):
         train_pred = not train_pred
         train_sel = not train_sel
-        train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc, train_auc, train_f1, train_iou = selector.train_batch(train_loader, train_pred=True, train_sel=True)
-        val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc, val_auc, val_f1, val_iou = selector.test_batch(val_loader)
+        train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc, train_auc, train_precision, train_recall, train_iou = selector.train_batch(train_loader, train_pred=True, train_sel=True)
+        val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc, val_auc, val_precision, val_recall, val_iou = selector.test_batch(val_loader)
         val_fidelity_diff = val_fid_plus_probs - val_fid_minus_probs
         if val_fidelity_diff > best_val_fidelity_diff and val_sparsity < config['sparsity']:
             best_val_fidelity_diff = val_fidelity_diff
             print(f'Best validation fidelity difference updated: {best_val_fidelity_diff:.4f}, saving selector...')
             torch.save(selector.state_dict(), os.path.join(log_path, 'selector.pt'))
         if config['print_results']:
-            print(f'Epoch: {epoch}, Train loss: {train_loss:.4f}, Train sparsity: {train_sparsity:.4f}, Train pos loss: {train_pos_loss:.4f}, Train neg loss: {train_neg_loss:.4f}, Train pos metric: {train_pos_metric:.4f}, Train neg metric: {train_neg_metric:.4f}, Train fid plus probs: {train_fid_plus_probs:.4f}, Train fid minus probs: {train_fid_minus_probs:.4f}, Train fid plus acc: {train_fid_plus_acc:.4f}, Train fid minus acc: {train_fid_minus_acc:.4f}, Train auc: {train_auc:.4f}, Train f1: {train_f1:.4f}, Train iou: {train_iou:.4f}')
-            print(f'Epoch: {epoch}, Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}, Val auc: {val_auc:.4f}, Val f1: {val_f1:.4f}, Val iou: {val_iou:.4f}')
+            print(f'Epoch: {epoch}, Train loss: {train_loss:.4f}, Train sparsity: {train_sparsity:.4f}, Train pos loss: {train_pos_loss:.4f}, Train neg loss: {train_neg_loss:.4f}, Train pos metric: {train_pos_metric:.4f}, Train neg metric: {train_neg_metric:.4f}, Train fid plus probs: {train_fid_plus_probs:.4f}, Train fid minus probs: {train_fid_minus_probs:.4f}, Train fid plus acc: {train_fid_plus_acc:.4f}, Train fid minus acc: {train_fid_minus_acc:.4f}, Train auc: {train_auc:.4f}, Train precision: {train_precision:.4f}, Train recall: {train_recall:.4f}, Train iou: {train_iou:.4f}')
+            print(f'Epoch: {epoch}, Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}, Val auc: {val_auc:.4f}, Val precision: {val_precision:.4f}, Val recall: {val_recall:.4f}, Val iou: {val_iou:.4f}')
         writer.add_scalar('SELECTOR/train_loss', train_loss, epoch)
         writer.add_scalar('SELECTOR/train_sparsity', train_sparsity, epoch)
         writer.add_scalar('SELECTOR/train_pos_loss', train_pos_loss, epoch)
@@ -219,7 +219,8 @@ if config['train_selector']:
         writer.add_scalar('SELECTOR/train_fid_plus_acc', train_fid_plus_acc, epoch)
         writer.add_scalar('SELECTOR/train_fid_minus_acc', train_fid_minus_acc, epoch)
         writer.add_scalar('SELECTOR/train_auc', train_auc, epoch)
-        writer.add_scalar('SELECTOR/train_f1', train_f1, epoch)
+        writer.add_scalar('SELECTOR/train_precision', train_precision, epoch)
+        writer.add_scalar('SELECTOR/train_recall', train_recall, epoch)
         writer.add_scalar('SELECTOR/train_iou', train_iou, epoch)
         writer.add_scalar('SELECTOR/val_loss', val_loss, epoch)
         writer.add_scalar('SELECTOR/val_sparsity', val_sparsity, epoch)
@@ -232,16 +233,17 @@ if config['train_selector']:
         writer.add_scalar('SELECTOR/val_fid_plus_acc', val_fid_plus_acc, epoch)
         writer.add_scalar('SELECTOR/val_fid_minus_acc', val_fid_minus_acc, epoch)
         writer.add_scalar('SELECTOR/val_auc', val_auc, epoch)
-        writer.add_scalar('SELECTOR/val_f1', val_f1, epoch)
+        writer.add_scalar('SELECTOR/val_precision', val_precision, epoch)
+        writer.add_scalar('SELECTOR/val_recall', val_recall, epoch)
         writer.add_scalar('SELECTOR/val_iou', val_iou, epoch)
 
 selector.load_state_dict(torch.load(os.path.join(log_path, 'selector.pt'), weights_only=False))
 # selector.load_state_dict(torch.load("logs/final/BAMotifs/run_1744557584//selector.pt", weights_only=False))
 for sparsity in [0.1, 0.2, 0.3, 0.4, 0.5]:
-    val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc, val_auc, val_f1, val_iou = selector.test_batch(val_loader)
-    test_loss, test_sparsity, test_pos_loss, test_neg_loss, test_pos_metric, test_neg_metric, test_fid_plus_probs, test_fid_minus_probs, test_fid_plus_acc, test_fid_minus_acc, test_auc, test_f1, test_iou = selector.test_batch(test_loader)
-    print(f'Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}, Val auc: {val_auc:.4f}, Val f1: {val_f1:.4f}, Val iou: {val_iou:.4f}')
-    print(f'Test loss: {test_loss:.4f}, Test sparsity: {test_sparsity:.4f}, Test pos loss: {test_pos_loss:.4f}, Test neg loss: {test_neg_loss:.4f}, Test pos metric: {test_pos_metric:.4f}, Test neg metric: {test_neg_metric:.4f}, Test fid plus probs: {test_fid_plus_probs:.4f}, Test fid minus probs: {test_fid_minus_probs:.4f}, Test fid plus acc: {test_fid_plus_acc:.4f}, Test fid minus acc: {test_fid_minus_acc:.4f}, Test auc: {test_auc:.4f}, Test f1: {test_f1:.4f}, Test iou: {test_iou:.4f}')
+    val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc, val_auc, val_precision, val_recall, val_iou = selector.test_batch(val_loader)
+    test_loss, test_sparsity, test_pos_loss, test_neg_loss, test_pos_metric, test_neg_metric, test_fid_plus_probs, test_fid_minus_probs, test_fid_plus_acc, test_fid_minus_acc, test_auc, test_precision, test_recall, test_iou = selector.test_batch(test_loader)
+    print(f'Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}, Val auc: {val_auc:.4f}, Val precision: {val_precision:.4f}, Val recall: {val_recall:.4f}, Val iou: {val_iou:.4f}')
+    print(f'Test loss: {test_loss:.4f}, Test sparsity: {test_sparsity:.4f}, Test pos loss: {test_pos_loss:.4f}, Test neg loss: {test_neg_loss:.4f}, Test pos metric: {test_pos_metric:.4f}, Test neg metric: {test_neg_metric:.4f}, Test fid plus probs: {test_fid_plus_probs:.4f}, Test fid minus probs: {test_fid_minus_probs:.4f}, Test fid plus acc: {test_fid_plus_acc:.4f}, Test fid minus acc: {test_fid_minus_acc:.4f}, Test auc: {test_auc:.4f}, Test precision: {test_precision:.4f}, Test recall: {test_recall:.4f}, Test iou: {test_iou:.4f}')
 
 y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues = selector.predict_batch(test_loader)
 

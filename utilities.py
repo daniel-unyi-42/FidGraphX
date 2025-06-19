@@ -2,6 +2,8 @@ import torch
 from torch_geometric.data import Data
 # from sklearn.metrics import balanced_accuracy_score
 from sklearn.metrics import f1_score as f1_score_sklearn
+from sklearn.metrics import precision_score as precision_score_sklearn
+from sklearn.metrics import recall_score as recall_score_sklearn
 from sklearn.metrics import jaccard_score as jaccard_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 
@@ -50,6 +52,16 @@ def fid_minus_acc(pos_preds, baseline_preds):
     # pos_labels = pos_preds.argmax(dim=1).cpu().numpy()
     # baseline_labels = baseline_preds.argmax(dim=1).cpu().numpy()
     # return 1.0 - balanced_accuracy_score(pos_labels, baseline_labels)
+
+def precision_score(pred_explanations, true_explanations):
+    pred_explanations = pred_explanations.detach().cpu().numpy()
+    true_explanations = true_explanations.detach().cpu().numpy()
+    return precision_score_sklearn(pred_explanations, true_explanations, average='macro', zero_division=0)
+
+def recall_score(pred_explanations, true_explanations):
+    pred_explanations = pred_explanations.detach().cpu().numpy()
+    true_explanations = true_explanations.detach().cpu().numpy()
+    return recall_score_sklearn(pred_explanations, true_explanations, average='macro', zero_division=0)
 
 def f1_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
