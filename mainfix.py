@@ -33,7 +33,7 @@ np.random.seed(seed)
 # set data path and log path
 data_path = f"{config['data_path']}/{config['dataset']}"
 os.makedirs(data_path, exist_ok=True)
-log_path = f"{config['log_path']}/final/{config['dataset']}"
+log_path = f"{config['log_path']}/{config['dataset']}"
 os.makedirs(log_path, exist_ok=True)
 
 
