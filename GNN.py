@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
-from torchmetrics import MeanAbsoluteError, MulticlassF1Score
+from torchmetrics import MeanAbsoluteError, F1Score
 from GNLayer import GNLayer
 from utilities import tensor_to_list
 
@@ -104,7 +104,7 @@ class GNN(nn.Module):
       self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
       if task_type == 'classification':
         self.criterion = F.cross_entropy
-        self.metric = MulticlassF1Score(num_classes=out_channels).to(self.device)
+        self.metric = F1Score(task='multiclass', num_classes=out_channels).to(self.device)
       elif task_type == 'regression':
         self.criterion = F.mse_loss
         self.metric = MeanAbsoluteError().to(self.device)
