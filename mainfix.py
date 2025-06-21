@@ -120,7 +120,7 @@ baseline_pretrained = config['baseline_pretrained']
 # train baseline model
 if baseline_pretrained is None:
     best_val_acc = float('inf') if config['task_type'] == 'regression' else 0
-    for epoch in range(config['epochs']):
+    for epoch in range(config['baseline_epochs']):
         train_loss, train_acc = baseline.train_batch(train_loader)
         val_loss, val_acc = baseline.test_batch(val_loader)
         if (config['task_type'] == 'classification' and best_val_acc < val_acc) or \
@@ -207,14 +207,14 @@ if explainer_pretrained is None:
     best_val_fidelity_diff = 0
     train_pred = True
     train_exp = False
-    # explainer.sparsity = 1.0
-    for epoch in range(config['epochs']):
-        if epoch % 1:
-            train_pred = not train_pred
-            train_exp = not train_exp
-        # if epoch % 50 == 0 and explainer.sparsity > max(config['sparsity'], 0.05):
-        #     explainer.sparsity -= 0.05
-        #     logging.info(f'Sparsity updated: {explainer.sparsity:.4f}')
+    explainer.sparsity = 1.0
+    for epoch in range(config['explainer_epochs']):
+        # if epoch % 1:
+        #     train_pred = not train_pred
+        #     train_exp = not train_exp
+        if epoch % 25 == 0 and explainer.sparsity > max(config['sparsity'], 0.05):
+            explainer.sparsity -= 0.05
+            logging.info(f'Sparsity updated: {explainer.sparsity:.4f}')
         train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc, train_auc, train_precision, train_recall, train_iou = explainer.train_batch(train_loader, train_pred=True, train_exp=True)
         val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc, val_auc, val_precision, val_recall, val_iou = explainer.test_batch(val_loader)
         val_fidelity_diff = val_fid_plus_probs - val_fid_minus_probs
