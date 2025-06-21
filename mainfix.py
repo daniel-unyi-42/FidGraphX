@@ -5,7 +5,7 @@ import time
 import numpy as np
 import networkx as nx
 import torch
-from BAMotifs import BAMotifs
+from BAMotifs import BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs, BAORMotifs, BAXORMotifs, BAANDMotifs
 from BAMotifsVolumeDataset import BAMotifsVolumeDataset
 from AlkaneCarbonylDataset import AlkaneCarbonylDataset
 from BenzeneDataset import BenzeneDataset
@@ -54,7 +54,17 @@ os.makedirs(data_path, exist_ok=True)
 
 if config['dataset'] == 'BAMotifs':
     dataset = BAMotifs(data_path, num_graphs=3000, attach_prob=0.2)
-
+elif config['dataset'] == 'BAImbalancedMotifs':
+    dataset = BAImbalancedMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+elif config['dataset'] == 'BAIgnoringMotifs':
+    dataset = BAIgnoringMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+elif config['dataset'] == 'BAORMotifs':
+    dataset = BAORMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+elif config['dataset'] == 'BAXORMotifs':
+    dataset = BAXORMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+elif config['dataset'] == 'BAANDMotifs':
+    dataset = BAANDMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+#
 elif config['dataset'] == 'BAMotifsVolume':
     dataset = BAMotifsVolumeDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
 elif config['dataset'] == 'AlkaneCarbonyl':
