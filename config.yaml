@@ -13,8 +13,8 @@ learning_rate: 0.0002
 epochs: 200
 batch_size: 64
 
-train_baseline: true
-train_selector: true
+baseline_pretrained: null
+explainer_pretrained: null
 
 sparsity: 0.15
 reward_coeff: 1.0

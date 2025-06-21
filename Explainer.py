@@ -5,9 +5,9 @@ import torch_geometric.nn as gnn
 from GNN import GNBlock, MLPBlock
 from utilities import apply_mask, tensor_to_list, tensor_batch_to_list, fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc, auc_score, precision_score, recall_score, iou_score
 
-class Selector(nn.Module):
+class Explainer(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
-        super(Selector, self).__init__()
+        super(Explainer, self).__init__()
         self.task_type = baseline.task_type
         self.sparsity = sparsity
         self.reward_coeff = reward_coeff
@@ -70,7 +70,7 @@ class Selector(nn.Module):
         x = self.head(x)
         return x
 
-    def train_batch(self, loader, train_pred=True, train_sel=True):
+    def train_batch(self, loader, train_pred=True, train_exp=True):
         self.baseline.eval()
         self_losses, sparsities = [], []
         pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
@@ -103,8 +103,8 @@ class Selector(nn.Module):
                 with torch.no_grad():
                     reward = -(pos_loss - neg_loss)
                     self_loss = self.criterion(reward, mask, probs, data.batch)
-            # train selector
-            if train_sel:
+            # train explainer
+            if train_exp:
                 self.pos_predictor.eval()
                 self.neg_predictor.eval()
                 self.train()
