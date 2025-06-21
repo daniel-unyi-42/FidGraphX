@@ -194,7 +194,7 @@ explainer = Explainer(
 
 # print('Explainer model:\n', explainer)
 
-explainer_pretrained = config['baseline_pretrained']
+explainer_pretrained = config['explainer_pretrained']
 
 if explainer_pretrained is None:
     best_val_fidelity_diff = 0
