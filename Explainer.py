@@ -102,6 +102,7 @@ class Explainer(nn.Module):
                 self.neg_predictor.optimizer.step()
                 with torch.no_grad():
                     reward = -(pos_loss - neg_loss)
+                    reward = (reward - reward.mean()) / (reward.std() + 1e-8)
                     self_loss = self.criterion(reward, mask, probs, data.batch)
             # train explainer
             if train_exp:
@@ -117,6 +118,7 @@ class Explainer(nn.Module):
                     pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
                     neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
                     reward = -(pos_loss - neg_loss)
+                    reward = (reward - reward.mean()) / (reward.std() + 1e-8)
                 probs = torch.sigmoid(self(data))
                 self_loss = self.criterion(reward, mask, probs, data.batch)
                 self_loss.backward()
@@ -183,6 +185,7 @@ class Explainer(nn.Module):
             pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
             neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
             reward = -(pos_loss - neg_loss)
+            reward = (reward - reward.mean()) / (reward.std() + 1e-8)
             self_loss = self.criterion(reward, mask, probs, data.batch)
             self_losses.append(self_loss.item())
             sparsities.append(mask.mean().item())
