@@ -45,9 +45,9 @@ class BaseBAMotifs(InMemoryDataset, ABC):
             data.x = X if X is not None else torch.full((data.num_nodes, 10), 0.1)
             data.y = torch.tensor([label], dtype=torch.long)
             # 4) Build node-level ground-truth mask named 'true'
-            mask = torch.zeros(data.num_nodes, dtype=torch.long)
-            mask[list(gt_nodes)] = 1
-            data.true = mask
+            node_mask = torch.zeros(data.num_nodes, dtype=torch.long)
+            node_mask[list(gt_nodes)] = 1
+            data.true = node_mask
             data_list.append(data)
         # Collate and save
         data, slices = self.collate(data_list)
