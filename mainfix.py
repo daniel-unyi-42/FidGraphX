@@ -222,13 +222,13 @@ if explainer_pretrained is None:
         # if epoch % 1:
         #     train_pred = not train_pred
         #     train_exp = not train_exp
-        if epoch % 25 == 0 and explainer.sparsity > max(config['sparsity'], 0.05):
+        if epoch % 25 == 0 and not np.isclose(explainer.sparsity, config['sparsity']):
             explainer.sparsity -= 0.05
             logging.info(f'Sparsity updated: {explainer.sparsity:.4f}')
         train_loss, train_sparsity, train_pos_loss, train_neg_loss, train_pos_metric, train_neg_metric, train_fid_plus_probs, train_fid_minus_probs, train_fid_plus_acc, train_fid_minus_acc, train_auc, train_precision, train_recall, train_iou = explainer.train_batch(train_loader, train_pred=True, train_exp=True)
         val_loss, val_sparsity, val_pos_loss, val_neg_loss, val_pos_metric, val_neg_metric, val_fid_plus_probs, val_fid_minus_probs, val_fid_plus_acc, val_fid_minus_acc, val_auc, val_precision, val_recall, val_iou = explainer.test_batch(val_loader)
         val_fidelity_diff = val_fid_plus_probs - val_fid_minus_probs
-        if val_fidelity_diff > best_val_fidelity_diff and val_sparsity < config['sparsity']:
+        if val_fidelity_diff > best_val_fidelity_diff and val_sparsity < config['sparsity'] + 0.01:
             best_val_fidelity_diff = val_fidelity_diff
             logging.info(f'Best validation fidelity difference updated: {best_val_fidelity_diff:.4f}, saving explainer...')
             torch.save(explainer.state_dict(), os.path.join(log_path, 'explainer.pt'))
