@@ -29,7 +29,10 @@ class BaseBAMotifs(InMemoryDataset, ABC):
             'pentagon': nx.cycle_graph(5),
             'wheel':    nx.wheel_graph(6),
             'star':     nx.star_graph(5),
-            'grid':     nx.grid_graph(dim=(3, 3))
+            'grid':     nx.convert_node_labels_to_integers(
+                            nx.grid_graph(dim=(3, 3)),
+                            first_label=0, ordering='default'
+                        )
         }
         data_list = []
         for _ in range(self.num_graphs):
