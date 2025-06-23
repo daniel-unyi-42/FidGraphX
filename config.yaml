@@ -1,6 +1,14 @@
-dataset: "BAMotifs"
 data_path: "data"
-log_path: "logs"
+log_path: "final_logs"
+
+dataset: "BAMotifs"
+dataset_params:
+  num_graphs: 3000
+  attach_prob: 0.2
+  min_nodes: 20
+  max_nodes: 40
+  min_edges_per_node: 2
+  max_edges_per_node: 4
 
 task_type: "classification"
 
@@ -12,7 +20,7 @@ use_norm: true
 learning_rate: 0.0002
 batch_size: 64
 baseline_epochs: 100
-explainer_epochs: 500
+explainer_epochs: 200
 
 baseline_pretrained: null
 explainer_pretrained: null

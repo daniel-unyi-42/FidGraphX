@@ -6,9 +6,18 @@ import random
 from abc import ABC, abstractmethod
 
 class BaseBAMotifs(InMemoryDataset, ABC):
-    def __init__(self, root, transform=None, pre_transform=None, num_graphs=3000, attach_prob=0.2):
+    def __init__(self, root,
+                 num_graphs, attach_prob,
+                 min_nodes, max_nodes,
+                 min_edges_per_node, max_edges_per_node,
+                 transform=None, pre_transform=None,
+        ):
         self.num_graphs = num_graphs
         self.attach_prob = attach_prob
+        self.min_nodes = min_nodes
+        self.max_nodes = max_nodes
+        self.min_edges_per_node = min_edges_per_node
+        self.max_edges_per_node = max_edges_per_node
         super().__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
@@ -54,8 +63,8 @@ class BaseBAMotifs(InMemoryDataset, ABC):
         torch.save((data, slices), self.processed_paths[0])
 
     def _gen_base_graph(self):
-        n = random.randint(20, 40)
-        m = random.randint(2, 4)
+        n = random.randint(self.min_nodes, self.max_nodes)
+        m = random.randint(self.min_edges_per_node, self.max_edges_per_node)
         return nx.barabasi_albert_graph(n, m)
 
     def _attach_motif(self, G, motif_graph):

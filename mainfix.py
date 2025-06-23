@@ -58,18 +58,19 @@ os.makedirs(data_path, exist_ok=True)
 
 def load_dataset(config, data_path):
     dataset_name = config['dataset']
+    dataset_params = config['dataset_params']
     if dataset_name == 'BAMotifs':
-        return BAMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+        return BAMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAImbalancedMotifs':
-        return BAImbalancedMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+        return BAImbalancedMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAIgnoringMotifs':
-        return BAIgnoringMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+        return BAIgnoringMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAORMotifs':
-        return BAORMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+        return BAORMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAXORMotifs':
-        return BAXORMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+        return BAXORMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAANDMotifs':
-        return BAANDMotifs(data_path, num_graphs=3000, attach_prob=0.2)
+        return BAANDMotifs(data_path, **dataset_params)
     #
     elif config['dataset'] == 'BAMotifsVolume':
         return BAMotifsVolumeDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
