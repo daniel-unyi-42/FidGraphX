@@ -167,27 +167,18 @@ class GNN(nn.Module):
     @torch.no_grad()
     def predict_batch(self, loader):
       self.eval()
+      x_embs = []
       y_preds = []
       y_trues = []
       for data in loader:
         data = data.to(self.device)
         if self.task_type == 'regression':
           data.y = data.y.unsqueeze(1)
-        logits = self(data)
+        x_emb = self.embed(data)
+        y_pred = self.head(x_emb)
         if self.task_type == 'classification':
-          y_pred = F.softmax(logits, dim=1)
-        elif self.task_type == 'regression':
-          y_pred = logits
+          y_pred = F.softmax(y_pred, dim=1)
+        x_embs += tensor_to_list(x_emb)
         y_preds += tensor_to_list(y_pred)
         y_trues += tensor_to_list(data.y)
-      return y_preds, y_trues
-
-    @torch.no_grad()
-    def embed_batch(self, loader):
-      self.eval()
-      all_embeddings = []
-      for data in loader:
-        data = data.to(self.device)
-        embeddings = self.embed(data)
-        all_embeddings += tensor_to_list(embeddings)
-      return all_embeddings
+      return x_embs, y_preds, y_trues

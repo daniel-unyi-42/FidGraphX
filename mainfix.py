@@ -20,7 +20,7 @@ from torch_geometric.utils import to_networkx
 from GNN import GNN
 from Explainer import Explainer
 from utils import log_metrics, log_metrics_tb
-from metrics import save_cmplot, save_regplot
+from metrics import save_tsneplot, save_cmplot, save_regplot
 import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 
@@ -164,8 +164,8 @@ log_metrics(logging, val_metrics, epoch, "Val")
 test_metrics = baseline.evaluate_batch(test_loader)
 log_metrics(logging, test_metrics, epoch, "Test")
 
-y_preds, y_trues = baseline.predict_batch(test_loader)
-
+x_embs, y_preds, y_trues = baseline.predict_batch(test_loader)
+save_tsneplot(y_trues, x_embs, save_path=f'{log_path}/baseline_tsne.png')
 if config['task_type'] == 'classification':
     save_cmplot(y_trues, y_preds, save_path=f'{log_path}/baseline_cm.png')
 elif config['task_type'] == 'regression':
@@ -224,8 +224,9 @@ test_metrics_random = explainer.evaluate_batch(test_loader, random=True)
 log_metrics(logging, val_metrics_random, epoch, "Val Random")
 log_metrics(logging, test_metrics_random, epoch, "Test Random")
 
-y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues = explainer.explain_batch(test_loader)
-
+y_probs, y_masks, explanations, pos_embs, pos_preds, neg_embs, neg_preds, y_trues = explainer.explain_batch(test_loader)
+save_tsneplot(y_trues, pos_embs, save_path=f'{log_path}/pos_predictor_tsne.png')
+save_tsneplot(y_trues, neg_embs, save_path=f'{log_path}/neg_predictor_tsne.png')
 if config['task_type'] == 'classification':
     save_cmplot(y_trues, pos_preds, save_path=f'{log_path}/pos_predictor_cm.png')
     save_cmplot(y_trues, neg_preds, save_path=f'{log_path}/neg_predictor_cm.png')

@@ -1,10 +1,12 @@
 import torch
+import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
 from sklearn.metrics import jaccard_score as jaccard_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 from sklearn.metrics import confusion_matrix
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -66,5 +68,14 @@ def save_regplot(y_true, y_pred, save_path):
     plt.scatter(y_true, y_pred)
     plt.xlabel('True')
     plt.ylabel('Predicted')
+    plt.savefig(save_path)
+    plt.close()
+
+def save_tsneplot(y_true, emb, save_path):
+    tsne = TSNE(n_components=2)
+    emb_2d = tsne.fit_transform(np.array(emb))
+    scatter = plt.scatter(emb_2d[:, 0], emb_2d[:, 1], c=y_true)
+    plt.colorbar(scatter)
+    plt.title("t-SNE of Graph-level Embeddings")
     plt.savefig(save_path)
     plt.close()

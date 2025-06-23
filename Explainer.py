@@ -215,32 +215,31 @@ class Explainer(nn.Module):
     def explain_batch(self, loader, random=False):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
-        self.baseline.eval()
         self.eval()
         y_probs, y_masks, explanations = [], [], []
-        pos_preds, neg_preds, baseline_preds, y_trues = [], [], [], []
+        pos_embs, neg_embs = [], []
+        pos_preds, neg_preds = [], []
+        y_trues = []
         for data in loader:
             data = data.to(self.device)
             # if self.task_type == 'regression':
             #     data.y = data.y.unsqueeze(1)
-            probs = self(data)
+            probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
             y_probs += tensor_batch_to_list(probs, data.batch)
             y_masks += tensor_batch_to_list(mask, data.batch)
             explanations += tensor_batch_to_list(data.true, data.batch)
-            pos_logits = self.pos_predictor(apply_mask(data, mask))
-            neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-            baseline_logits = self.baseline(data)
+            pos_emb = self.pos_predictor.embed(apply_mask(data, mask))
+            pos_pred = self.pos_predictor.head(pos_emb)
+            neg_emb = self.neg_predictor.embed(apply_mask(data, 1.0 - mask))
+            neg_pred = self.neg_predictor.head(neg_emb)
             if self.task_type == 'classification':
-                pos_pred = F.softmax(pos_logits, dim=1)
-                neg_pred = F.softmax(neg_logits, dim=1)
-                baseline_pred = F.softmax(baseline_logits, dim=1)
-            elif self.task_type == 'regression':
-                pos_pred = pos_logits
-                neg_pred = neg_logits
-                baseline_pred = baseline_logits
+                pos_pred = F.softmax(pos_pred, dim=1)
+                neg_pred = F.softmax(neg_pred, dim=1)
+            pos_embs += tensor_to_list(pos_emb)
             pos_preds += tensor_to_list(pos_pred)
+            neg_embs += tensor_to_list(neg_emb)
             neg_preds += tensor_to_list(neg_pred)
-            baseline_preds += tensor_to_list(baseline_pred)
             y_trues += tensor_to_list(data.y)
-        return y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues
+        return y_probs, y_masks, explanations, \
+            pos_embs, pos_preds, neg_embs, neg_preds, y_trues
