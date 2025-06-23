@@ -151,19 +151,19 @@ if baseline_pretrained is None:
             logging.info(f'Best validation accuracy updated: {best_val_metric:.4f}, saving baseline...')
             torch.save(baseline.state_dict(), os.path.join(log_path, 'baseline.pt'))
         if config['logging']:
-            log_metrics(logging, train_metrics, epoch, "Train")
-            log_metrics(logging, val_metrics, epoch, "Val")
+            log_metrics(logging, train_metrics, "Train", epoch)
+            log_metrics(logging, val_metrics, "Val", epoch)
         if config['tb_logging']:
-            log_metrics_tb(writer, train_metrics, epoch, "train")
-            log_metrics_tb(writer, val_metrics, epoch, "val")
+            log_metrics_tb(writer, train_metrics, "train", epoch)
+            log_metrics_tb(writer, val_metrics, "val", epoch)
     baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
 else:
     baseline_path_pretrained = os.path.join(log_path_base, baseline_pretrained)
     baseline.load_state_dict(torch.load(os.path.join(baseline_path_pretrained, 'baseline.pt'), weights_only=False))
 val_metrics = baseline.evaluate_batch(val_loader)
-log_metrics(logging, val_metrics, epoch, "Val")
+log_metrics(logging, val_metrics, "Val")
 test_metrics = baseline.evaluate_batch(test_loader)
-log_metrics(logging, test_metrics, epoch, "Test")
+log_metrics(logging, test_metrics, "Test")
 
 x_embs, y_preds, y_trues = baseline.predict_batch(test_loader)
 save_tsneplot(y_trues, x_embs, save_path=f'{log_path}/baseline_tsne.png')
@@ -205,11 +205,11 @@ if explainer_pretrained is None:
             logging.info(f'Best validation fidelity difference updated: {best_val_fid_diff:.4f}, saving explainer...')
             torch.save(explainer.state_dict(), os.path.join(log_path, 'explainer.pt'))
         if config['logging']:
-            log_metrics(logging, train_metrics, epoch, "Train")
-            log_metrics(logging, val_metrics, epoch, "Val")
+            log_metrics(logging, train_metrics, "Train", epoch)
+            log_metrics(logging, val_metrics, "Val", epoch)
         if config['tb_logging']:
-            log_metrics_tb(writer, train_metrics, epoch, "train")
-            log_metrics_tb(writer, val_metrics, epoch, "val")
+            log_metrics_tb(writer, train_metrics, "train", epoch)
+            log_metrics_tb(writer, val_metrics, "val", epoch)
     explainer.load_state_dict(torch.load(os.path.join(log_path, 'explainer.pt'), weights_only=False))
 else:
     explainer_path_pretrained = os.path.join(log_path_base, explainer_pretrained)
@@ -217,13 +217,13 @@ else:
 
 val_metrics = explainer.evaluate_batch(val_loader)
 test_metrics = explainer.evaluate_batch(test_loader)
-log_metrics(logging, val_metrics, epoch, "Val")
-log_metrics(logging, test_metrics, epoch, "Test")
+log_metrics(logging, val_metrics, "Val")
+log_metrics(logging, test_metrics, "Test")
 
 val_metrics_random = explainer.evaluate_batch(val_loader, random=True)
 test_metrics_random = explainer.evaluate_batch(test_loader, random=True)
-log_metrics(logging, val_metrics_random, epoch, "Val Random")
-log_metrics(logging, test_metrics_random, epoch, "Test Random")
+log_metrics(logging, val_metrics_random, "Val Random")
+log_metrics(logging, test_metrics_random, "Test Random")
 
 y_probs, y_masks, explanations, pos_embs, pos_preds, neg_embs, neg_preds, y_trues = explainer.explain_batch(test_loader)
 save_tsneplot(y_trues, pos_embs, save_path=f'{log_path}/pos_predictor_tsne.png')
@@ -246,10 +246,10 @@ if config['retrain_predictors']:
         train_metrics = explainer.train_batch(train_loader)
         val_metrics = explainer.evaluate_batch(val_loader)
         if config['logging']:
-            log_metrics(logging, train_metrics, epoch, "Train")
-            log_metrics(logging, val_metrics, epoch, "Val")
+            log_metrics(logging, train_metrics, "Train", epoch)
+            log_metrics(logging, val_metrics, "Val", epoch)
     val_metrics = explainer.evaluate_batch(val_loader)
     test_metrics = explainer.evaluate_batch(test_loader)
-    log_metrics(logging, val_metrics, epoch, "Val")
-    log_metrics(logging, test_metrics, epoch, "Test")
+    log_metrics(logging, val_metrics, "Val")
+    log_metrics(logging, test_metrics, "Test")
 
