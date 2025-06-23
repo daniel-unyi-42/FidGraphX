@@ -4,7 +4,9 @@ from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
 from sklearn.metrics import jaccard_score as jaccard_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
-
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # TODO: Fidelity metrics should support regression tasks as well
 
@@ -50,3 +52,19 @@ def auc_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
     return roc_auc_score_sklearn(true_explanations, pred_explanations, average='macro', multi_class='ovr')
+
+def save_cmplot(y_true, y_pred, save_path):
+    y_pred = [pred.argmax() for pred in y_pred]
+    cm = confusion_matrix(y_true, y_pred)
+    sns.heatmap(cm, annot=True, fmt='d')
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.savefig(save_path)
+    plt.close()
+
+def save_regplot(y_true, y_pred, save_path):
+    plt.scatter(y_true, y_pred)
+    plt.xlabel('True')
+    plt.ylabel('Predicted')
+    plt.savefig(save_path)
+    plt.close()

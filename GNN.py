@@ -93,9 +93,10 @@ class GNN(nn.Module):
       self.use_norm = use_norm
       self.task_type = task_type
 
-      self.conv0 = GNBlock(conv_type, in_channels, hidden_channels, hidden_channels, edge_dim, use_norm)
-      for i in range(num_layers-1):
-        setattr(self, f'conv{i+1}', GNBlock(conv_type, hidden_channels, hidden_channels, hidden_channels, edge_dim, use_norm))
+      self.convs = nn.ModuleList()
+      self.convs.append(GNBlock(conv_type, in_channels, hidden_channels, hidden_channels, edge_dim, use_norm))
+      for _ in range(num_layers - 1):
+        self.convs.append(GNBlock(conv_type, hidden_channels, hidden_channels, hidden_channels, edge_dim, use_norm))
       self.head = MLPBlock(hidden_channels, hidden_channels, out_channels)
       self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
       if task_type == 'classification':
@@ -113,8 +114,8 @@ class GNN(nn.Module):
 
     def embed(self, data):
       x = data.x
-      for i in range(self.num_layers):
-        x = getattr(self, f'conv{i}')(x, data.edge_index, data.edge_attr)
+      for conv in self.convs:
+        x = conv(x, data.edge_index, data.edge_attr)
       x = gnn.global_mean_pool(x, data.batch)
       return x
 
@@ -125,8 +126,10 @@ class GNN(nn.Module):
 
     def train_batch(self, loader):
       self.train()
-      losses = []
-      metrics = []
+      metrics = {
+         'loss': 0.0,
+         'metric': 0.0,
+      }
       for data in loader:
         data = data.to(self.device)
         if self.task_type == 'regression':
@@ -136,26 +139,30 @@ class GNN(nn.Module):
         loss = self.criterion(logits, data.y)
         loss.backward()
         self.optimizer.step()
-        losses.append(loss.item())
-        metric = self.metric(logits, data.y)
-        metrics.append(metric.item())
-      return sum(losses) / len(losses), sum(metrics) / len(metrics)
+        metrics['loss'] += loss.item()
+        metrics['metric'] += self.metric(logits, data.y).item()
+      for metric_name in metrics:
+        metrics[metric_name] /= len(loader)
+      return metrics
 
     @torch.no_grad()
-    def test_batch(self, loader):
+    def evaluate_batch(self, loader):
       self.eval()
-      losses = []
-      metrics = []
+      metrics = {
+         'loss': 0.0,
+         'metric': 0.0,
+      }
       for data in loader:
         data = data.to(self.device)
         if self.task_type == 'regression':
           data.y = data.y.unsqueeze(1)
         logits = self(data)
         loss = self.criterion(logits, data.y)
-        losses.append(loss.item())
-        metric = self.metric(logits, data.y)
-        metrics.append(metric.item())
-      return sum(losses) / len(losses), sum(metrics) / len(metrics)
+        metrics['loss'] += loss.item()
+        metrics['metric'] += self.metric(logits, data.y).item()
+      for metric_name in metrics:
+        metrics[metric_name] /= len(loader)
+      return metrics
 
     @torch.no_grad()
     def predict_batch(self, loader):

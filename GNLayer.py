@@ -32,7 +32,7 @@ class GNLayer(gnn.MessagePassing):
 
     def forward(self, x, edge_index, edge_attr=None, size=None):
         if edge_attr is None:
-            edge_attr = torch.ones(edge_index.size(1), 0).to(x.device)
+            edge_attr = torch.ones(edge_index.size(1), 0, device=x.device)
         agg = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=size)
         agg = torch.cat([x, agg], dim=1)
         out = self.node_mlp(agg)
@@ -45,3 +45,4 @@ class GNLayer(gnn.MessagePassing):
             out = torch.cat([x_i, x_j, edge_attr], dim=1)
         out = self.edge_mlp(out)
         return out
+

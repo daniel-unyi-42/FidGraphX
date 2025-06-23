@@ -1,5 +1,15 @@
 from torch_geometric.data import Data
 
+def log_metrics(logging, metrics, epoch, mode):
+    msg = f"Epoch: {epoch}, {mode} "
+    msg += ', '.join(f"{k}: {v:.4f}" for k, v in metrics.items())
+    logging.info(msg)
+
+def log_metrics_tb(writer, metrics, epoch, mode):
+    for k, v in metrics.items():
+        tag = f"EXPLAINER/{mode}_{k}"
+        writer.add_scalar(tag, v, epoch)
+
 def apply_mask(data, mask):
     x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
     x = (x * mask).float()

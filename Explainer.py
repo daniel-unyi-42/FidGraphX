@@ -22,16 +22,17 @@ class Explainer(nn.Module):
         self.hidden_channels = baseline.hidden_channels
         self.edge_dim = baseline.edge_dim
         self.use_norm = baseline.use_norm
-        self.conv0 = GNBlock(
+        self.convs = nn.ModuleList()
+        self.convs.append(GNBlock(
             self.conv_type,
             self.in_channels,
             self.hidden_channels,
             self.hidden_channels,
             self.edge_dim,
             self.use_norm
-        )
-        for i in range(1, self.num_layers):
-            setattr(self, f'conv{i}', GNBlock(
+        ))
+        for _ in range(self.num_layers - 1):
+            self.convs.append(GNBlock(
                 self.conv_type,
                 self.hidden_channels,
                 self.hidden_channels,
@@ -66,17 +67,29 @@ class Explainer(nn.Module):
 
     def forward(self, data):
         x = data.x
-        for i in range(self.num_layers):
-            x = getattr(self, f'conv{i}')(x, data.edge_index, data.edge_attr)
+        for conv in self.convs:
+            x = conv(x, data.edge_index, data.edge_attr)
         x = self.head(x)
         return x
 
-    def train_batch(self, loader, train_pred=True, train_exp=True):
+    def train_batch(self, loader):
         self.baseline.eval()
-        self_losses, sparsities = [], []
-        pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
-        fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
-        aucs, precisions, recalls, ious = [], [], [], []
+        metrics = {
+            'explainer loss': 0.0,
+            'sparsity': 0.0,
+            'pos_loss': 0.0,
+            'pos_metric': 0.0,
+            'neg_loss': 0.0,
+            'neg_metric': 0.0,
+            'fidplus_prob': 0.0,
+            'fidplus_acc': 0.0,
+            'fidminus_prob': 0.0,
+            'fidminus_acc': 0.0,
+            'auc': 0.0,
+            'precision': 0.0,
+            'recall': 0.0,
+            'iou': 0.0
+        }
         for data in loader:
             data = data.to(self.device)
             # if self.task_type == 'regression':
@@ -84,96 +97,85 @@ class Explainer(nn.Module):
             with torch.no_grad():
                 baseline_logits = self.baseline(data)
             # train pos_predictor and neg_predictor
-            if train_pred:
-                self.eval()
-                self.pos_predictor.train()
-                self.pos_predictor.optimizer.zero_grad()
-                self.neg_predictor.train()
-                self.neg_predictor.optimizer.zero_grad()
-                with torch.no_grad():
-                    probs = torch.sigmoid(self(data))
-                    mask = torch.bernoulli(probs)
-                pos_logits = self.pos_predictor(apply_mask(data, mask))
-                pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
-                pos_loss.mean().backward()
-                self.pos_predictor.optimizer.step()
-                neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
-                neg_loss.mean().backward()
-                self.neg_predictor.optimizer.step()
-                with torch.no_grad():
-                    reward = -(pos_loss - neg_loss)
-                    reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-                    self_loss = self.criterion(reward, mask, probs, data.batch)
-            # train explainer
-            if train_exp:
-                self.pos_predictor.eval()
-                self.neg_predictor.eval()
-                self.train()
-                self.optimizer.zero_grad()
-                with torch.no_grad():
-                    probs = torch.sigmoid(self(data))
-                    mask = torch.bernoulli(probs)
-                    pos_logits = self.pos_predictor(apply_mask(data, mask))
-                    neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                    pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
-                    neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
-                    reward = -(pos_loss - neg_loss)
-                    reward = (reward - reward.mean()) / (reward.std() + 1e-8)
+            self.eval()
+            self.pos_predictor.train()
+            self.pos_predictor.optimizer.zero_grad()
+            self.neg_predictor.train()
+            self.neg_predictor.optimizer.zero_grad()
+            with torch.no_grad():
                 probs = torch.sigmoid(self(data))
+                mask = torch.bernoulli(probs)
+            pos_logits = self.pos_predictor(apply_mask(data, mask))
+            pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
+            pos_loss.mean().backward()
+            self.pos_predictor.optimizer.step()
+            neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+            neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
+            neg_loss.mean().backward()
+            self.neg_predictor.optimizer.step()
+            with torch.no_grad():
+                reward = -(pos_loss - neg_loss)
+                reward = (reward - reward.mean()) / (reward.std() + 1e-8)
                 self_loss = self.criterion(reward, mask, probs, data.batch)
-                self_loss.backward()
-                self.optimizer.step()
+            # train explainer
+            self.pos_predictor.eval()
+            self.neg_predictor.eval()
+            self.train()
+            self.optimizer.zero_grad()
+            with torch.no_grad():
+                probs = torch.sigmoid(self(data))
+                mask = torch.bernoulli(probs)
+                pos_logits = self.pos_predictor(apply_mask(data, mask))
+                neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+                pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
+                neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
+                reward = -(pos_loss - neg_loss)
+                reward = (reward - reward.mean()) / (reward.std() + 1e-8)
+            probs = torch.sigmoid(self(data))
+            self_loss = self.criterion(reward, mask, probs, data.batch)
+            self_loss.backward()
+            self.optimizer.step()
             # record metrics
-            self_losses.append(self_loss.item())
-            sparsities.append(mask.mean().item())
-            pos_losses.append(pos_loss.mean().item())
-            neg_losses.append(neg_loss.mean().item())
-            pos_metric = self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1))
-            neg_metric = self.neg_predictor.metric(neg_logits, baseline_logits.argmax(dim=1))
-            pos_metrics.append(pos_metric.item())
-            neg_metrics.append(neg_metric.item())
-            fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_logits)
-            fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_logits)
-            fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_logits)
-            fid_minus_acc_metric = fid_minus_acc(pos_logits, baseline_logits)
-            fid_plus_probs.append(fid_plus_prob_metric)
-            fid_minus_probs.append(fid_minus_prob_metric)
-            fid_plus_accs.append(fid_plus_acc_metric)
-            fid_minus_accs.append(fid_minus_acc_metric)
-            auc = auc_score(probs, data.true)
-            precision = precision_score(mask, data.true)
-            recall = recall_score(mask, data.true)
-            iou = iou_score(mask, data.true)
-            aucs.append(auc)
-            precisions.append(precision)
-            recalls.append(recall)
-            ious.append(iou)
-        return sum(self_losses) / len(self_losses), \
-            sum(sparsities) / len(sparsities), \
-                sum(pos_losses) / len(pos_losses), \
-                    sum(neg_losses) / len(neg_losses), \
-                        sum(pos_metrics) / len(pos_metrics), \
-                            sum(neg_metrics) / len(neg_metrics), \
-                                sum(fid_plus_probs) / len(fid_plus_probs), \
-                                    sum(fid_minus_probs) / len(fid_minus_probs), \
-                                        sum(fid_plus_accs) / len(fid_plus_accs), \
-                                            sum(fid_minus_accs) / len(fid_minus_accs), \
-                                                sum(aucs) / len(aucs), \
-                                                    sum(precisions) / len(precisions), \
-                                                        sum(recalls) / len(recalls), \
-                                                            sum(ious) / len(ious)
+            metrics['explainer loss'] += self_loss.item()
+            metrics['sparsity'] += mask.mean().item()
+            metrics['pos_loss'] += pos_loss.mean().item()
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1)).item()
+            metrics['neg_loss'] += neg_loss.mean().item()
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, baseline_logits.argmax(dim=1)).item()
+            metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
+            metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
+            metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
+            metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+            metrics['auc'] += auc_score(probs, data.true)
+            metrics['precision'] += precision_score(mask, data.true)
+            metrics['recall'] += recall_score(mask, data.true)
+            metrics['iou'] += iou_score(mask, data.true)
+        for metric_name in metrics:
+            metrics[metric_name] /= len(loader)
+        return metrics
 
     @torch.no_grad()
-    def test_batch(self, loader):
+    def evaluate_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.baseline.eval()
         self.eval()
-        self_losses, sparsities = [], []
-        pos_losses, neg_losses, pos_metrics, neg_metrics = [], [], [], []
-        fid_plus_probs, fid_minus_probs, fid_plus_accs, fid_minus_accs = [], [], [], []
-        aucs, precisions, recalls, ious = [], [], [], []
+        metrics = {
+            'explainer_loss': 0.0,
+            'sparsity': 0.0,
+            'pos_loss': 0.0,
+            'pos_metric': 0.0,
+            'neg_loss': 0.0,
+            'neg_metric': 0.0,
+            'fidplus_prob': 0.0,
+            'fidplus_acc': 0.0,
+            'fidminus_prob': 0.0,
+            'fidminus_acc': 0.0,
+            'auc': 0.0,
+            'precision': 0.0,
+            'recall': 0.0,
+            'iou': 0.0
+        }
         for data in loader:
             data = data.to(self.device)
             # if self.task_type == 'regression':
@@ -188,44 +190,23 @@ class Explainer(nn.Module):
             reward = -(pos_loss - neg_loss)
             reward = (reward - reward.mean()) / (reward.std() + 1e-8)
             self_loss = self.criterion(reward, mask, probs, data.batch)
-            self_losses.append(self_loss.item())
-            sparsities.append(mask.mean().item())
-            pos_losses.append(pos_loss.mean().item())
-            neg_losses.append(neg_loss.mean().item())
-            pos_metric = self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1))
-            neg_metric = self.neg_predictor.metric(neg_logits, baseline_logits.argmax(dim=1))
-            pos_metrics.append(pos_metric.item())
-            neg_metrics.append(neg_metric.item())
-            fid_plus_prob_metric = fid_plus_prob(neg_logits, baseline_logits)
-            fid_minus_prob_metric = fid_minus_prob(pos_logits, baseline_logits)
-            fid_plus_acc_metric = fid_plus_acc(neg_logits, baseline_logits)
-            fid_minus_acc_metric = fid_minus_acc(pos_logits, baseline_logits)
-            fid_plus_probs.append(fid_plus_prob_metric)
-            fid_minus_probs.append(fid_minus_prob_metric)
-            fid_plus_accs.append(fid_plus_acc_metric)
-            fid_minus_accs.append(fid_minus_acc_metric)
-            auc = auc_score(probs, data.true)
-            precision = precision_score(mask, data.true)
-            recall = recall_score(mask, data.true)
-            iou = iou_score(mask, data.true)
-            aucs.append(auc)
-            precisions.append(precision)
-            recalls.append(recall)
-            ious.append(iou)
-        return sum(self_losses) / len(self_losses), \
-            sum(sparsities) / len(sparsities), \
-                sum(pos_losses) / len(pos_losses), \
-                    sum(neg_losses) / len(neg_losses), \
-                        sum(pos_metrics) / len(pos_metrics), \
-                            sum(neg_metrics) / len(neg_metrics), \
-                                sum(fid_plus_probs) / len(fid_plus_probs), \
-                                    sum(fid_minus_probs) / len(fid_minus_probs), \
-                                        sum(fid_plus_accs) / len(fid_plus_accs), \
-                                            sum(fid_minus_accs) / len(fid_minus_accs), \
-                                                sum(aucs) / len(aucs), \
-                                                    sum(precisions) / len(precisions), \
-                                                        sum(recalls) / len(recalls), \
-                                                            sum(ious) / len(ious)
+            metrics['explainer_loss'] += self_loss.item()
+            metrics['sparsity'] += mask.mean().item()
+            metrics['pos_loss'] += pos_loss.mean().item()
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1)).item()
+            metrics['neg_loss'] += neg_loss.mean().item()
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, baseline_logits.argmax(dim=1)).item()
+            metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
+            metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
+            metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
+            metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+            metrics['auc'] += auc_score(probs, data.true)
+            metrics['precision'] += precision_score(mask, data.true)
+            metrics['recall'] += recall_score(mask, data.true)
+            metrics['iou'] += iou_score(mask, data.true)
+        for metric_name in metrics:
+            metrics[metric_name] /= len(loader)
+        return metrics
 
     @torch.no_grad()
     def explain_batch(self, loader):

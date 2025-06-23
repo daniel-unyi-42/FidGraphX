@@ -25,4 +25,5 @@ val_size: 0.1
 test_size: 0.1
 
 logging: true
+tb_logging: true
 seed: 0
