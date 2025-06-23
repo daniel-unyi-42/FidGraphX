@@ -70,12 +70,15 @@ class Explainer(nn.Module):
         for conv in self.convs:
             x = conv(x, data.edge_index, data.edge_attr)
         x = self.head(x)
-        return x
-
+        return torch.sigmoid(x)
+    
+    def random_forward(self, data):
+        return torch.rand((data.num_nodes, 1), device=self.device)
+    
     def train_batch(self, loader):
         self.baseline.eval()
         metrics = {
-            'explainer loss': 0.0,
+            'explainer_loss': 0.0,
             'sparsity': 0.0,
             'pos_loss': 0.0,
             'pos_metric': 0.0,
@@ -103,7 +106,7 @@ class Explainer(nn.Module):
             self.neg_predictor.train()
             self.neg_predictor.optimizer.zero_grad()
             with torch.no_grad():
-                probs = torch.sigmoid(self(data))
+                probs = self(data)
                 mask = torch.bernoulli(probs)
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
@@ -123,7 +126,7 @@ class Explainer(nn.Module):
             self.train()
             self.optimizer.zero_grad()
             with torch.no_grad():
-                probs = torch.sigmoid(self(data))
+                probs = self(data)
                 mask = torch.bernoulli(probs)
                 pos_logits = self.pos_predictor(apply_mask(data, mask))
                 neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
@@ -131,12 +134,12 @@ class Explainer(nn.Module):
                 neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
                 reward = -(pos_loss - neg_loss)
                 reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-            probs = torch.sigmoid(self(data))
+            probs = self(data)
             self_loss = self.criterion(reward, mask, probs, data.batch)
             self_loss.backward()
             self.optimizer.step()
             # record metrics
-            metrics['explainer loss'] += self_loss.item()
+            metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
             metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1)).item()
@@ -155,7 +158,7 @@ class Explainer(nn.Module):
         return metrics
 
     @torch.no_grad()
-    def evaluate_batch(self, loader):
+    def evaluate_batch(self, loader, random=False):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.baseline.eval()
@@ -181,7 +184,7 @@ class Explainer(nn.Module):
             # if self.task_type == 'regression':
             #     data.y = data.y.unsqueeze(1)
             baseline_logits = self.baseline(data)
-            probs = torch.sigmoid(self(data))
+            probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
@@ -209,7 +212,7 @@ class Explainer(nn.Module):
         return metrics
 
     @torch.no_grad()
-    def explain_batch(self, loader):
+    def explain_batch(self, loader, random=False):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.baseline.eval()
@@ -220,7 +223,7 @@ class Explainer(nn.Module):
             data = data.to(self.device)
             # if self.task_type == 'regression':
             #     data.y = data.y.unsqueeze(1)
-            probs = torch.sigmoid(self(data))
+            probs = self(data)
             mask = (probs > 0.5).float()
             y_probs += tensor_batch_to_list(probs, data.batch)
             y_masks += tensor_batch_to_list(mask, data.batch)

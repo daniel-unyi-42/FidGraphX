@@ -219,6 +219,11 @@ test_metrics = explainer.evaluate_batch(test_loader)
 log_metrics(logging, val_metrics, epoch, "Val")
 log_metrics(logging, test_metrics, epoch, "Test")
 
+val_metrics_random = explainer.evaluate_batch(val_loader, random=True)
+test_metrics_random = explainer.evaluate_batch(test_loader, random=True)
+log_metrics(logging, val_metrics_random, epoch, "Val Random")
+log_metrics(logging, test_metrics_random, epoch, "Test Random")
+
 y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues = explainer.explain_batch(test_loader)
 
 if config['task_type'] == 'classification':
