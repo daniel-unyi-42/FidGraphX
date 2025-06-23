@@ -80,13 +80,14 @@ def load_dataset(config, data_path):
         return BenzeneDataset(data_path)
     elif config['dataset'] == 'FluorideCarbonyl':
         return FluorideCarbonylDataset(data_path)
+    #
     elif config['dataset'] == 'MNIST':
         class SuperPixelTransform(object):
             def __call__(self, data):
                 data = T.ToUndirected()(data)
                 data.x = torch.cat([data.x, data.pos], dim=1)
                 data.edge_attr = data.edge_attr.unsqueeze(-1)
-                data.true =  torch.ones_like(data.x[:, 0])
+                data.true =  torch.ones_like(data.num_nodes, device=data.x.device)
                 return data
         return GNNBenchmarkDataset(
             data_path,
