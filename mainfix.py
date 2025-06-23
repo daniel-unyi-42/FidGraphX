@@ -273,7 +273,7 @@ test_loss, test_sparsity, test_pos_loss, test_neg_loss, test_pos_metric, test_ne
 logging.info(f'Val loss: {val_loss:.4f}, Val sparsity: {val_sparsity:.4f}, Val pos loss: {val_pos_loss:.4f}, Val neg loss: {val_neg_loss:.4f}, Val pos metric: {val_pos_metric:.4f}, Val neg metric: {val_neg_metric:.4f}, Val fid plus probs: {val_fid_plus_probs:.4f}, Val fid minus probs: {val_fid_minus_probs:.4f}, Val fid plus acc: {val_fid_plus_acc:.4f}, Val fid minus acc: {val_fid_minus_acc:.4f}, Val auc: {val_auc:.4f}, Val precision: {val_precision:.4f}, Val recall: {val_recall:.4f}, Val iou: {val_iou:.4f}')
 logging.info(f'Test loss: {test_loss:.4f}, Test sparsity: {test_sparsity:.4f}, Test pos loss: {test_pos_loss:.4f}, Test neg loss: {test_neg_loss:.4f}, Test pos metric: {test_pos_metric:.4f}, Test neg metric: {test_neg_metric:.4f}, Test fid plus probs: {test_fid_plus_probs:.4f}, Test fid minus probs: {test_fid_minus_probs:.4f}, Test fid plus acc: {test_fid_plus_acc:.4f}, Test fid minus acc: {test_fid_minus_acc:.4f}, Test auc: {test_auc:.4f}, Test precision: {test_precision:.4f}, Test recall: {test_recall:.4f}, Test iou: {test_iou:.4f}')
 
-y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues = explainer.predict_batch(test_loader)
+y_probs, y_masks, explanations, pos_preds, neg_preds, baseline_preds, y_trues = explainer.explain_batch(test_loader)
 
 if config['task_type'] == 'classification':
     pos_preds = [pred.argmax() for pred in pos_preds]

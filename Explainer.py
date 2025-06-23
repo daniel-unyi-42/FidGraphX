@@ -227,7 +227,7 @@ class Explainer(nn.Module):
                                                             sum(ious) / len(ious)
 
     @torch.no_grad()
-    def predict_batch(self, loader):
+    def explain_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.baseline.eval()
