@@ -1,11 +1,14 @@
 from torch_geometric.data import Data
 
-def log_metrics(logging, metrics, epoch, mode):
-    msg = f"Epoch: {epoch}, {mode} "
+def log_metrics(logging, metrics, mode, epoch=None):
+    if epoch is not None:
+        msg = f"Epoch: {epoch}, {mode} "
+    else:
+        msg = f"{mode} "
     msg += ', '.join(f"{k}: {v:.4f}" for k, v in metrics.items())
     logging.info(msg)
 
-def log_metrics_tb(writer, metrics, epoch, mode):
+def log_metrics_tb(writer, metrics, mode, epoch):
     for k, v in metrics.items():
         tag = f"EXPLAINER/{mode}_{k}"
         writer.add_scalar(tag, v, epoch)
