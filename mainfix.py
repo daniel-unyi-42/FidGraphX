@@ -213,8 +213,8 @@ else:
     explainer_path_pretrained = os.path.join(log_path_base, explainer_pretrained)
     explainer.load_state_dict(torch.load(os.path.join(explainer_path_pretrained, 'explainer.pt'), weights_only=False))
 
-val_metrics = explainer.test_batch(val_loader)
-test_metrics = explainer.test_batch(test_loader)
+val_metrics = explainer.evaluate_batch(val_loader)
+test_metrics = explainer.evaluate_batch(test_loader)
 log_metrics(logging, val_metrics, epoch, "Val")
 log_metrics(logging, test_metrics, epoch, "Test")
 
@@ -240,8 +240,8 @@ if config['retrain_predictors']:
         if config['logging']:
             log_metrics(logging, train_metrics, epoch, "Train")
             log_metrics(logging, val_metrics, epoch, "Val")
-    val_metrics = explainer.test_batch(val_loader)
-    test_metrics = explainer.test_batch(test_loader)
+    val_metrics = explainer.evaluate_batch(val_loader)
+    test_metrics = explainer.evaluate_batch(test_loader)
     log_metrics(logging, val_metrics, epoch, "Val")
     log_metrics(logging, test_metrics, epoch, "Test")
 
