@@ -5,7 +5,10 @@ import time
 import numpy as np
 import networkx as nx
 import torch
-from BAMotifs import BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs, BAORMotifs, BAXORMotifs, BAANDMotifs
+from BAMotifs import (
+    BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs,
+    BAORMotifs, BAXORMotifs, BAANDMotifs
+)
 from BAMotifsVolumeDataset import BAMotifsVolumeDataset
 from AlkaneCarbonylDataset import AlkaneCarbonylDataset
 from BenzeneDataset import BenzeneDataset
@@ -226,4 +229,19 @@ elif config['task_type'] == 'regression':
 
 if config['tb_logging']:
     writer.close()
+
+# retrain new pos_predictor and neg_predictor
+if config['retrain_predictors']:
+    explainer.pos_predictor = create_gnn(config, num_node_features, num_classes, num_edge_features)
+    explainer.neg_predictor = create_gnn(config, num_node_features, num_classes, num_edge_features)
+    for epoch in range(config['baseline_epochs']):
+        train_metrics = explainer.train_batch(train_loader)
+        val_metrics = explainer.evaluate_batch(val_loader)
+        if config['logging']:
+            log_metrics(logging, train_metrics, epoch, "Train")
+            log_metrics(logging, val_metrics, epoch, "Val")
+    val_metrics = explainer.test_batch(val_loader)
+    test_metrics = explainer.test_batch(test_loader)
+    log_metrics(logging, val_metrics, epoch, "Val")
+    log_metrics(logging, test_metrics, epoch, "Test")
 

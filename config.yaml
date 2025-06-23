@@ -27,3 +27,6 @@ test_size: 0.1
 logging: true
 tb_logging: true
 seed: 0
+
+retrain_predictors: false
+
