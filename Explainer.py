@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from GNN import GNBlock, MLPBlock
-from utilities import apply_mask, tensor_to_list, tensor_batch_to_list, fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc, auc_score, precision_score, recall_score, iou_score
+from utils import apply_mask, tensor_to_list, tensor_batch_to_list
+from metrics import fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc, auc_score, precision_score, recall_score, iou_score
 
 class Explainer(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
@@ -39,12 +40,12 @@ class Explainer(nn.Module):
                 self.use_norm
             ))
         self.head = MLPBlock(self.hidden_channels, self.hidden_channels, 1)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        self.criterion = self.loss
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.device != torch.device('cuda'):
             print('WARNING: GPU not available. Using CPU instead.')
         self.to(self.device)
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        self.criterion = self.loss
     
     def loss(self, reward, y_true, y_pred, batch):
         # the reward is calculated for each graph

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from torchmetrics import MeanAbsoluteError, F1Score
 from GNLayer import GNLayer
-from utilities import tensor_to_list
+from utils import tensor_to_list
 
 class MLPBlock(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -97,25 +97,29 @@ class GNN(nn.Module):
       for i in range(num_layers-1):
         setattr(self, f'conv{i+1}', GNBlock(conv_type, hidden_channels, hidden_channels, hidden_channels, edge_dim, use_norm))
       self.head = MLPBlock(hidden_channels, hidden_channels, out_channels)
+      self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+      if task_type == 'classification':
+        self.criterion = F.cross_entropy
+        self.metric = F1Score(task='multiclass', num_classes=out_channels)
+      elif task_type == 'regression':
+        self.criterion = F.mse_loss
+        self.metric = MeanAbsoluteError()
+      else:
+        raise ValueError('Task type must be either "classification" or "regression"')
       self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
       if self.device != torch.device('cuda'):
         print('WARNING: GPU not available. Using CPU instead.')
       self.to(self.device)
-      self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
-      if task_type == 'classification':
-        self.criterion = F.cross_entropy
-        self.metric = F1Score(task='multiclass', num_classes=out_channels).to(self.device)
-      elif task_type == 'regression':
-        self.criterion = F.mse_loss
-        self.metric = MeanAbsoluteError().to(self.device)
-      else:
-        raise ValueError('Task type must be either "classification" or "regression"')
 
-    def forward(self, data):
+    def embed(self, data):
       x = data.x
       for i in range(self.num_layers):
         x = getattr(self, f'conv{i}')(x, data.edge_index, data.edge_attr)
       x = gnn.global_mean_pool(x, data.batch)
+      return x
+
+    def forward(self, data):
+      x = self.embed(data)
       x = self.head(x)
       return x
 
@@ -170,3 +174,13 @@ class GNN(nn.Module):
         y_preds += tensor_to_list(y_pred)
         y_trues += tensor_to_list(data.y)
       return y_preds, y_trues
+
+    @torch.no_grad()
+    def embed_batch(self, loader):
+      self.eval()
+      all_embeddings = []
+      for data in loader:
+        data = data.to(self.device)
+        embeddings = self.embed(data)
+        all_embeddings += tensor_to_list(embeddings)
+      return all_embeddings
