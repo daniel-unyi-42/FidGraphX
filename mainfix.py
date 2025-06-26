@@ -154,8 +154,8 @@ if baseline_pretrained is None:
             log_metrics(logging, train_metrics, "Train", epoch)
             log_metrics(logging, val_metrics, "Val", epoch)
         if config['tb_logging']:
-            log_metrics_tb(writer, train_metrics, "train", epoch)
-            log_metrics_tb(writer, val_metrics, "val", epoch)
+            log_metrics_tb(writer, train_metrics, "BASELINE/train", epoch)
+            log_metrics_tb(writer, val_metrics, "BASELINE/val", epoch)
     baseline.load_state_dict(torch.load(os.path.join(log_path, 'baseline.pt'), weights_only=False))
 else:
     baseline_path_pretrained = os.path.join(log_path_base, baseline_pretrained)
@@ -208,8 +208,8 @@ if explainer_pretrained is None:
             log_metrics(logging, train_metrics, "Train", epoch)
             log_metrics(logging, val_metrics, "Val", epoch)
         if config['tb_logging']:
-            log_metrics_tb(writer, train_metrics, "train", epoch)
-            log_metrics_tb(writer, val_metrics, "val", epoch)
+            log_metrics_tb(writer, train_metrics, "EXPLAINER/train", epoch)
+            log_metrics_tb(writer, val_metrics, "EXPLAINER/val", epoch)
     explainer.load_state_dict(torch.load(os.path.join(log_path, 'explainer.pt'), weights_only=False))
 else:
     explainer_path_pretrained = os.path.join(log_path_base, explainer_pretrained)
