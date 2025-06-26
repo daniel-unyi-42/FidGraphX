@@ -10,7 +10,7 @@ def log_metrics(logging, metrics, mode, epoch=None):
 
 def log_metrics_tb(writer, metrics, mode, epoch):
     for k, v in metrics.items():
-        tag = f"EXPLAINER/{mode}_{k}"
+        tag = f"{mode}_{k}"
         writer.add_scalar(tag, v, epoch)
 
 def apply_mask(data, mask):
