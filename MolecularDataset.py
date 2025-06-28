@@ -9,7 +9,7 @@ class MolecularDataset(InMemoryDataset, ABC):
     processed_filename = None
 
     def __init__(self, root, transform=None, pre_transform=None):
-        if any(v is None for v in (self.url, self.filename, self.processed_name)):
+        if any(v is None for v in (self.url, self.filename, self.processed_filename)):
             raise ValueError("One of url, filename or processed_filename is None!")
         super().__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
