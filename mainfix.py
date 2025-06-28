@@ -9,10 +9,7 @@ from BAMotifs import (
     BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs,
     BAORMotifs, BAXORMotifs, BAANDMotifs
 )
-from BAMotifsVolumeDataset import BAMotifsVolumeDataset
-from AlkaneCarbonylDataset import AlkaneCarbonylDataset
-from BenzeneDataset import BenzeneDataset
-from FluorideCarbonylDataset import FluorideCarbonylDataset
+from MolecularDataset import AlkaneCarbonylDataset, BenzeneDataset, FluorideCarbonylDataset
 from torch_geometric.datasets import GNNBenchmarkDataset
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
@@ -71,9 +68,6 @@ def load_dataset(config, data_path):
         return BAXORMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAANDMotifs':
         return BAANDMotifs(data_path, **dataset_params)
-    #
-    elif config['dataset'] == 'BAMotifsVolume':
-        return BAMotifsVolumeDataset(data_path, num_graphs=500, ba_nodes=25, attach_prob=0.1)
     elif config['dataset'] == 'AlkaneCarbonyl':
         return AlkaneCarbonylDataset(data_path)
     elif config['dataset'] == 'Benzene':
@@ -87,12 +81,13 @@ def load_dataset(config, data_path):
                 data = T.ToUndirected()(data)
                 data.x = torch.cat([data.x, data.pos], dim=1)
                 data.edge_attr = data.edge_attr.unsqueeze(-1)
-                data.true =  torch.ones_like(data.num_nodes, device=data.x.device)
                 return data
         return GNNBenchmarkDataset(
-            data_path,
-            config['dataset'],
-            pre_transform=SuperPixelTransform(),
+            root=data_path,
+            name=config['dataset'],
+            split='train',
+            pre_transform=SuperPixelTransform()
+        )
         )
     else:
         raise ValueError(f"Dataset {config['dataset']} not supported")
