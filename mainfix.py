@@ -148,7 +148,7 @@ if baseline_pretrained is None:
         if (config['task_type'] == 'classification' and best_val_metric < val_metric) or \
            (config['task_type'] == 'regression' and best_val_metric > val_metric):
             best_val_metric = val_metric
-            logging.info(f'Best validation accuracy updated: {best_val_metric:.4f}, saving baseline...')
+            logging.info(f'Best validation metric updated: {best_val_metric:.4f}, saving baseline...')
             torch.save(baseline.state_dict(), os.path.join(log_path, 'baseline.pt'))
         if config['logging']:
             log_metrics(logging, train_metrics, "Train", epoch)
