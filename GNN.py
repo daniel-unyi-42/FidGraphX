@@ -79,6 +79,7 @@ class GNN(nn.Module):
         out_channels,
         edge_dim=0,
         use_norm=False,
+        class_weights=None,
       ):
       super().__init__()
 
@@ -100,8 +101,9 @@ class GNN(nn.Module):
       self.head = MLPBlock(hidden_channels, hidden_channels, out_channels)
       self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
       if task_type == 'classification':
-        self.criterion = F.cross_entropy
-        self.metric = F1Score(task='multiclass', num_classes=out_channels)
+        self.register_buffer("class_weights", class_weights)
+        self.criterion = lambda logits, target, reduction='mean': F.cross_entropy(logits, target, weight=self.class_weights, reduction=reduction)
+        self.metric = F1Score(task='multiclass', num_classes=out_channels, average='weighted')
       elif task_type == 'regression':
         self.criterion = F.mse_loss
         self.metric = MeanAbsoluteError()

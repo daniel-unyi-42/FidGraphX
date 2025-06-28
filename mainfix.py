@@ -103,6 +103,7 @@ def create_gnn(config, in_channels, out_channels, edge_dim):
         out_channels=out_channels,
         edge_dim=edge_dim,
         use_norm=config['use_norm'],
+        class_weights=config['class_weights']
     )
 
 dataset = load_dataset(config, data_path)
@@ -120,8 +121,19 @@ train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=Tr
 val_loader = DataLoader(val_set, batch_size=len(val_set))
 test_loader = DataLoader(test_set, batch_size=len(test_set))
 
-expected_sparsity = np.array([data.true.sum().item() / data.num_nodes for data in train_loader]).mean()
-logging.info(f"Expected sparsity: {expected_sparsity}")
+# calculate expected sparsity
+if hasattr(dataset[0], 'true'):
+    expected_sparsity = np.array([data.true.sum().item() / data.num_nodes for data in train_loader]).mean()
+    logging.info(f"Expected sparsity: {expected_sparsity}")
+# calculate class weights
+if config['task_type'] == 'classification':
+    class_counts = torch.zeros(dataset.num_classes)
+    for data in dataset:
+        class_counts[data.y] += 1
+    class_weights = 1.0 / class_counts
+    class_weights /= class_weights.sum()
+    config['class_weights'] = class_weights
+    logging.info(f"Class weights: {config['class_weights']}")
 
 num_node_features = dataset[0].x.shape[1]
 num_edge_features = 0 if dataset[0].edge_attr is None else dataset[0].edge_attr.shape[1]
