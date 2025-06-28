@@ -1,4 +1,5 @@
 from torch_geometric.data import Data
+from torch_geometric.utils import subgraph
 
 def log_metrics(logging, metrics, mode, epoch=None):
     if epoch is not None:
@@ -14,14 +15,23 @@ def log_metrics_tb(writer, metrics, mode, epoch):
         writer.add_scalar(tag, v, epoch)
 
 def apply_mask(data, mask):
-    x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-    x = (x * mask).float()
     mask = mask.squeeze().bool()
-    edge_mask = (mask[edge_index[0]]) & (mask[edge_index[1]])
-    edge_index = edge_index[:, edge_mask]
-    if edge_attr is not None:
-        edge_attr = edge_attr[edge_mask]
-    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=data.batch, y=data.y)
+    node_idx = mask.nonzero().view(-1)
+    edge_index, edge_attr = subgraph(
+        node_idx,
+        data.edge_index,
+        data.edge_attr,
+        relabel_nodes=True,
+        num_nodes=data.num_nodes,
+    )
+    return Data(
+        x=data.x[node_idx] if data.x is not None else None,
+        edge_index=edge_index,
+        edge_attr=edge_attr,
+        batch=data.batch[node_idx] if data.batch is not None else None,
+        batch_size=data.batch.max().item() + 1 if data.batch is not None else None,
+        y=data.y,
+    )
 
 def tensor_to_list(tensor):
     result = []

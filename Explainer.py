@@ -48,12 +48,12 @@ class Explainer(nn.Module):
             print('WARNING: GPU not available. Using CPU instead.')
         self.to(self.device)
     
-    def loss(self, reward, y_true, y_pred, batch):
+    def loss(self, reward, y_true, y_pred, batch, batch_size):
         # the reward is calculated for each graph
         # binary cross-entropy between node selection probabilities and the node selection mask, averaged over the nodes for each graph
         cross_entropy = gnn.global_mean_pool(
             -torch.sum(y_true * torch.log(y_pred + 1e-8) + (1 - y_true) * torch.log(1 - y_pred + 1e-8), dim=1),
-            batch
+            batch, size=batch_size
         )
         # L1 norm of the probability so that the model learns to use as few nodes as possible
         # instead of calculation for each graph, we calculate the mean over the whole batch
@@ -119,7 +119,7 @@ class Explainer(nn.Module):
             with torch.no_grad():
                 reward = -(pos_loss - neg_loss)
                 reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-                self_loss = self.criterion(reward, mask, probs, data.batch)
+                self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             # train explainer
             self.pos_predictor.eval()
             self.neg_predictor.eval()
@@ -135,7 +135,7 @@ class Explainer(nn.Module):
                 reward = -(pos_loss - neg_loss)
                 reward = (reward - reward.mean()) / (reward.std() + 1e-8)
             probs = self(data)
-            self_loss = self.criterion(reward, mask, probs, data.batch)
+            self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             self_loss.backward()
             self.optimizer.step()
             # record metrics
@@ -192,7 +192,7 @@ class Explainer(nn.Module):
             neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
             reward = -(pos_loss - neg_loss)
             reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-            self_loss = self.criterion(reward, mask, probs, data.batch)
+            self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()

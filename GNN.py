@@ -116,7 +116,7 @@ class GNN(nn.Module):
       x = data.x
       for conv in self.convs:
         x = conv(x, data.edge_index, data.edge_attr)
-      x = gnn.global_mean_pool(x, data.batch)
+      x = gnn.global_mean_pool(x, data.batch, size=data.batch_size)
       return x
 
     def forward(self, data):
