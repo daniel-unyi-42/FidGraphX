@@ -149,10 +149,11 @@ class Explainer(nn.Module):
             metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
             metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
             metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-            metrics['auc'] += auc_score(probs, data.true)
-            metrics['precision'] += precision_score(mask, data.true)
-            metrics['recall'] += recall_score(mask, data.true)
-            metrics['iou'] += iou_score(mask, data.true)
+            if hasattr(data, 'true'):
+                metrics['auc'] += auc_score(probs, data.true)
+                metrics['precision'] += precision_score(mask, data.true)
+                metrics['recall'] += recall_score(mask, data.true)
+                metrics['iou'] += iou_score(mask, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
@@ -203,10 +204,11 @@ class Explainer(nn.Module):
             metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
             metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
             metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-            metrics['auc'] += auc_score(probs, data.true)
-            metrics['precision'] += precision_score(mask, data.true)
-            metrics['recall'] += recall_score(mask, data.true)
-            metrics['iou'] += iou_score(mask, data.true)
+            if hasattr(data, 'true'):
+                metrics['auc'] += auc_score(probs, data.true)
+                metrics['precision'] += precision_score(mask, data.true)
+                metrics['recall'] += recall_score(mask, data.true)
+                metrics['iou'] += iou_score(mask, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
