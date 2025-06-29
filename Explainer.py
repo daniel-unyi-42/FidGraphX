@@ -230,7 +230,10 @@ class Explainer(nn.Module):
             mask = (probs > 0.5).float()
             y_probs += tensor_batch_to_list(probs, data.batch)
             y_masks += tensor_batch_to_list(mask, data.batch)
-            explanations += tensor_batch_to_list(data.true, data.batch)
+            if hasattr(data, 'true'):
+                explanations += tensor_batch_to_list(data.true, data.batch)
+            else:
+                explanations += tensor_batch_to_list(torch.zeros_like(mask), data.batch)
             pos_emb = self.pos_predictor.embed(apply_mask(data, mask))
             pos_pred = self.pos_predictor.head(pos_emb)
             neg_emb = self.neg_predictor.embed(apply_mask(data, 1.0 - mask))

@@ -25,8 +25,8 @@ explainer_epochs: 200
 baseline_pretrained: null
 explainer_pretrained: null
 
-sparsity: 0.15
-reward_coeff: 5.0
+sparsity: 0.2
+reward_coeff: 2.0
 
 train_size: 0.8
 val_size: 0.1
@@ -38,3 +38,4 @@ seed: 0
 
 retrain_predictors: false
 
+visualize_predictions: true

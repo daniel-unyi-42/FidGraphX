@@ -6,10 +6,10 @@ import numpy as np
 import networkx as nx
 import torch
 from BAMotifs import (
-    BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs,
+    BaseBAMotifs, BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs,
     BAORMotifs, BAXORMotifs, BAANDMotifs
 )
-from MolecularDataset import AlkaneCarbonylDataset, BenzeneDataset, FluorideCarbonylDataset
+from MolecularDataset import MolecularDataset, AlkaneCarbonylDataset, BenzeneDataset, FluorideCarbonylDataset
 from torch_geometric.datasets import GNNBenchmarkDataset
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
@@ -81,13 +81,16 @@ def load_dataset(config, data_path):
                 data = T.ToUndirected()(data)
                 data.x = torch.cat([data.x, data.pos], dim=1)
                 data.edge_attr = data.edge_attr.unsqueeze(-1)
+                indices = torch.topk(data.x[:,0], k=15).indices
+                node_mask = torch.zeros(data.num_nodes, dtype=torch.long)
+                node_mask[indices] = 1
+                data.true = node_mask
                 return data
         return GNNBenchmarkDataset(
             root=data_path,
             name=config['dataset'],
             split='train',
             pre_transform=SuperPixelTransform()
-        )
         )
     else:
         raise ValueError(f"Dataset {config['dataset']} not supported")
@@ -260,3 +263,69 @@ if config['retrain_predictors']:
     log_metrics(logging, val_metrics, "Val")
     log_metrics(logging, test_metrics, "Test")
 
+# visualize predictions
+plt.rcParams.update({"figure.dpi": 120})
+if config["visualize_predictions"]:
+    y_probs, y_masks, explanations, pos_embs, pos_preds, neg_embs, neg_preds, y_trues = explainer.explain_batch(test_loader)
+    for idx, data in enumerate(test_set):
+        if data.edge_attr is not None:
+            G = to_networkx(data, to_undirected=True, edge_attrs=["edge_attr"])
+        else:
+            G = to_networkx(data, to_undirected=True)
+        true_nodes = set(np.flatnonzero(explanations[idx].astype(bool)))
+        pred_nodes = set(np.flatnonzero(y_masks[idx][:, 0].astype(bool)))
+        if isinstance(dataset, BaseBAMotifs):
+            pos = nx.kamada_kawai_layout(G)
+            # pos = nx.spring_layout(G)
+            # motif_nodes_list = list(nx.connected_components(G.subgraph(true_nodes)))
+            # for i, motif_nodes in enumerate(motif_nodes_list):
+            #     motif_pos = nx.kamada_kawai_layout(G.subgraph(motif_nodes), scale=0.2)
+            #     shift = np.array([0.5 * (1 if i == 0 else -1), 0.5])
+            #     for node in motif_pos:
+            #         pos[node] = motif_pos[node] + shift
+        elif isinstance(dataset, MolecularDataset):
+            pos = nx.kamada_kawai_layout(G)
+        elif isinstance(dataset, GNNBenchmarkDataset):
+            pos = data.pos.cpu().numpy()
+            pos = np.array([pos[:, 1], -pos[:, 0]]).T
+        fig, ax = plt.subplots(figsize=(6, 6))
+        tp_nodes = [n for n in G.nodes() if n in true_nodes and n in pred_nodes]
+        fp_nodes = [n for n in G.nodes() if n in pred_nodes and n not in true_nodes]
+        fn_nodes = [n for n in G.nodes() if n in true_nodes and n not in pred_nodes]
+        for nodelist, color in [(fp_nodes, "#FF3300"), (fn_nodes, "#3366FF"), (tp_nodes, "#00FF00")]:
+            nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=nodelist, node_color=color,
+                                   node_size=600, alpha=1.0, linewidths=0)
+        if isinstance(dataset, BaseBAMotifs):
+            node_color = "orange"
+            edge_color = "#808080"
+            edge_width = 1.5
+        elif isinstance(dataset, MolecularDataset):
+            ATOM_TYPES = [
+                'C', 'N', 'O', 'S', 'F', 'P', 'Cl', 'Br', 'Na', 'Ca', 'I', 'B', 'H', '*'
+            ]
+            atom_indices = data.x.argmax(dim=1).cpu().numpy()
+            labels_dict = {i: ATOM_TYPES[idx] for i, idx in enumerate(atom_indices)}
+            node_color = "white"
+            edge_color = "#000000"
+            edge_width = []
+            for u, v, attr in G.edges(data=True):
+                bond_type = np.array(attr["edge_attr"]).argmax(-1) + 1
+                edge_width.append(bond_type)
+            nx.draw_networkx_labels(G, pos, labels=labels_dict, font_size=8, font_color="black")
+        elif isinstance(dataset, GNNBenchmarkDataset):
+            node_color = data.x.cpu().numpy()[:, 0]
+            edge_color = "#000000"
+            edge_width = 1.5
+        nx.draw_networkx_nodes(G, pos, ax=ax, nodelist=list(G.nodes()), node_color=node_color,
+                        node_size=400, alpha=1.0, linewidths=0)    
+        nx.draw_networkx_edges(G, pos, ax=ax, width=edge_width, edge_color=edge_color, alpha=0.8)
+        true_class = y_trues[idx].item()
+        pos_pred_class = pos_preds[idx].argmax().item()
+        neg_pred_class = neg_preds[idx].argmax().item()
+        ax.set_title(f"graph {idx} | y={true_class} | pos={pos_pred_class} | neg={neg_pred_class}", fontsize=16)
+        ax.axis("off")
+        fig.tight_layout()
+        filename = f'{log_path}/graph_{true_class}_{pos_pred_class}_{neg_pred_class}_{idx}.png'
+        plt.savefig(filename, bbox_inches='tight', dpi=300)
+        plt.close()
+        logging.info(filename)
