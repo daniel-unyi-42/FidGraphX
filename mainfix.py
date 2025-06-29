@@ -268,12 +268,8 @@ plt.rcParams.update({"figure.dpi": 120})
 if config["visualize_predictions"]:
     y_probs, y_masks, explanations, pos_embs, pos_preds, neg_embs, neg_preds, y_trues = explainer.explain_batch(test_loader)
     for idx, data in enumerate(test_set):
-        if data.edge_attr is not None:
-            G = to_networkx(data, to_undirected=True, edge_attrs=["edge_attr"])
-        else:
-            G = to_networkx(data, to_undirected=True)
-        true_nodes = set(np.flatnonzero(explanations[idx].astype(bool)))
-        pred_nodes = set(np.flatnonzero(y_masks[idx][:, 0].astype(bool)))
+        edge_attrs = ["edge_attr"] if data.edge_attr is not None else None
+        G = to_networkx(data, to_undirected=True, edge_attrs=edge_attrs)
         if isinstance(dataset, BaseBAMotifs):
             pos = nx.kamada_kawai_layout(G)
             # pos = nx.spring_layout(G)
@@ -288,6 +284,8 @@ if config["visualize_predictions"]:
         elif isinstance(dataset, GNNBenchmarkDataset):
             pos = data.pos.cpu().numpy()
             pos = np.array([pos[:, 1], -pos[:, 0]]).T
+        true_nodes = set(np.flatnonzero(explanations[idx].astype(bool)))
+        pred_nodes = set(np.flatnonzero(y_masks[idx][:, 0].astype(bool)))
         fig, ax = plt.subplots(figsize=(6, 6))
         tp_nodes = [n for n in G.nodes() if n in true_nodes and n in pred_nodes]
         fp_nodes = [n for n in G.nodes() if n in pred_nodes and n not in true_nodes]
@@ -305,13 +303,13 @@ if config["visualize_predictions"]:
             ]
             atom_indices = data.x.argmax(dim=1).cpu().numpy()
             labels_dict = {i: ATOM_TYPES[idx] for i, idx in enumerate(atom_indices)}
+            nx.draw_networkx_labels(G, pos, labels=labels_dict, font_size=8, font_color="black")
             node_color = "white"
             edge_color = "#000000"
-            edge_width = []
-            for u, v, attr in G.edges(data=True):
-                bond_type = np.array(attr["edge_attr"]).argmax(-1) + 1
-                edge_width.append(bond_type)
-            nx.draw_networkx_labels(G, pos, labels=labels_dict, font_size=8, font_color="black")
+            edge_width = [
+                np.array(attr["edge_attr"]).argmax(-1) + 1
+                for _, _, attr in G.edges(data=True)
+            ]
         elif isinstance(dataset, GNNBenchmarkDataset):
             node_color = data.x.cpu().numpy()[:, 0]
             edge_color = "#000000"
