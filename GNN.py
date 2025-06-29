@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
-from torchmetrics import MeanAbsoluteError, F1Score
+from torchmetrics import MeanSquaredError, F1Score
 from GNLayer import GNLayer
 from utils import tensor_to_list
 
@@ -106,7 +106,7 @@ class GNN(nn.Module):
         self.metric = F1Score(task='multiclass', num_classes=out_channels, average='weighted')
       elif task_type == 'regression':
         self.criterion = F.mse_loss
-        self.metric = MeanAbsoluteError()
+        self.metric = MeanSquaredError(squared=False)
       else:
         raise ValueError('Task type must be either "classification" or "regression"')
       self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
