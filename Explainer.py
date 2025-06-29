@@ -4,7 +4,13 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from GNN import GNBlock, MLPBlock
 from utils import apply_mask, tensor_to_list, tensor_batch_to_list
-from metrics import fid_plus_prob, fid_minus_prob, fid_plus_acc, fid_minus_acc, auc_score, precision_score, recall_score, iou_score
+from metrics import (
+    fid_plus_prob, fid_minus_prob,
+    fid_plus_class, fid_minus_class,
+    fid_minus_reg, fid_plus_reg,
+    auc_score, precision_score,
+    recall_score, iou_score
+)
 
 class Explainer(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
@@ -85,9 +91,9 @@ class Explainer(nn.Module):
             'neg_loss': 0.0,
             'neg_metric': 0.0,
             'fidplus_prob': 0.0,
-            'fidplus_acc': 0.0,
             'fidminus_prob': 0.0,
-            'fidminus_acc': 0.0,
+            'fidplus': 0.0,
+            'fidminus': 0.0,
             'auc': 0.0,
             'precision': 0.0,
             'recall': 0.0,
@@ -95,10 +101,12 @@ class Explainer(nn.Module):
         }
         for data in loader:
             data = data.to(self.device)
-            # if self.task_type == 'regression':
-            #     data.y = data.y.unsqueeze(1)
             with torch.no_grad():
                 baseline_logits = self.baseline(data)
+                if self.task_type == 'classification':
+                    target = baseline_logits.argmax(dim=1)
+                else:
+                    target = baseline_logits
             # train pos_predictor and neg_predictor
             self.eval()
             self.pos_predictor.train()
@@ -109,11 +117,11 @@ class Explainer(nn.Module):
                 probs = self(data)
                 mask = torch.bernoulli(probs)
             pos_logits = self.pos_predictor(apply_mask(data, mask))
-            pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
+            pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
             pos_loss.mean().backward()
             self.pos_predictor.optimizer.step()
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-            neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
+            neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
             neg_loss.mean().backward()
             self.neg_predictor.optimizer.step()
             with torch.no_grad():
@@ -130,8 +138,8 @@ class Explainer(nn.Module):
                 mask = torch.bernoulli(probs)
                 pos_logits = self.pos_predictor(apply_mask(data, mask))
                 neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
-                neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
+                pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
+                neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
                 reward = -(pos_loss - neg_loss)
                 reward = (reward - reward.mean()) / (reward.std() + 1e-8)
             probs = self(data)
@@ -142,13 +150,17 @@ class Explainer(nn.Module):
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
-            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1)).item()
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, baseline_logits.argmax(dim=1)).item()
-            metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
-            metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
-            metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-            metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
+            if self.task_type == 'classification':
+                metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
+                metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_class(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_class(pos_logits, baseline_logits)
+            else:
+                metrics['fidplus'] += fid_plus_reg(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_reg(pos_logits, baseline_logits)
             if hasattr(data, 'true'):
                 metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
@@ -172,9 +184,9 @@ class Explainer(nn.Module):
             'neg_loss': 0.0,
             'neg_metric': 0.0,
             'fidplus_prob': 0.0,
-            'fidplus_acc': 0.0,
             'fidminus_prob': 0.0,
-            'fidminus_acc': 0.0,
+            'fidplus': 0.0,
+            'fidminus': 0.0,
             'auc': 0.0,
             'precision': 0.0,
             'recall': 0.0,
@@ -182,28 +194,31 @@ class Explainer(nn.Module):
         }
         for data in loader:
             data = data.to(self.device)
-            # if self.task_type == 'regression':
-            #     data.y = data.y.unsqueeze(1)
             baseline_logits = self.baseline(data)
+            target = baseline_logits.argmax(dim=1) if self.task_type == 'classification' else baseline_logits
             probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-            pos_loss = self.pos_predictor.criterion(pos_logits, baseline_logits.argmax(dim=1), reduction='none')
-            neg_loss = self.neg_predictor.criterion(neg_logits, baseline_logits.argmax(dim=1), reduction='none')
+            pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
+            neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
             reward = -(pos_loss - neg_loss)
             reward = (reward - reward.mean()) / (reward.std() + 1e-8)
             self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
-            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, baseline_logits.argmax(dim=1)).item()
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, baseline_logits.argmax(dim=1)).item()
-            metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
-            metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
-            metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-            metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
+            if self.task_type == 'classification':
+                metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
+                metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_class(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_class(pos_logits, baseline_logits)
+            else:
+                metrics['fidplus'] += fid_plus_reg(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_reg(pos_logits, baseline_logits)
             if hasattr(data, 'true'):
                 metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
@@ -224,8 +239,6 @@ class Explainer(nn.Module):
         y_trues = []
         for data in loader:
             data = data.to(self.device)
-            # if self.task_type == 'regression':
-            #     data.y = data.y.unsqueeze(1)
             probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
             y_probs += tensor_batch_to_list(probs, data.batch)

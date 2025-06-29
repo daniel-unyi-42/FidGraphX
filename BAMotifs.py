@@ -52,7 +52,8 @@ class BaseBAMotifs(InMemoryDataset, ABC):
             # 3) Convert to PyG Data and assign attributes
             data = from_networkx(G)
             data.x = X if X is not None else torch.full((data.num_nodes, 10), 0.1)
-            data.y = torch.tensor([label], dtype=torch.long)
+            dtype = torch.float if isinstance(label, float) else torch.long
+            data.y = torch.tensor([label], dtype=dtype)
             # 4) Build node-level ground-truth mask named 'true'
             node_mask = torch.zeros(data.num_nodes, dtype=torch.long)
             node_mask[list(gt_nodes)] = 1
@@ -177,3 +178,15 @@ class BAANDMotifs(BaseBAMotifs):
             gt.update(nodes)
         label = 1 if len(present) == 2 else 0
         return label, gt, None
+
+class BAVolumeMotifs(BaseBAMotifs):
+    def _attach_and_label(self, G, all_motifs):
+        keys = list(all_motifs.keys())
+        motif = random.choice(keys)
+        nodes = self._attach_motif(G, all_motifs[motif])
+        rand_val = random.uniform(0, 1)        
+        X = torch.zeros((G.number_of_nodes(), 1), dtype=torch.float)
+        for n in nodes:
+            X[n, 0] = rand_val        
+        label = X[nodes, 0].sum().item()
+        return label, set(nodes), X

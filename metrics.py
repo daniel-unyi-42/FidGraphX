@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
@@ -13,22 +14,32 @@ import seaborn as sns
 # TODO: Fidelity metrics should support regression tasks as well
 
 def fid_plus_prob(neg_preds, baseline_preds):
-    neg_preds = torch.softmax(neg_preds, dim=1)
-    baseline_preds = torch.softmax(baseline_preds, dim=1)
-    idx = baseline_preds.argmax(1, keepdim=True)
-    return (baseline_preds.gather(1, idx) - neg_preds.gather(1, idx)).abs().mean()
+    with torch.no_grad():
+        neg_preds = torch.softmax(neg_preds, dim=1)
+        baseline_preds = torch.softmax(baseline_preds, dim=1)
+        idx = baseline_preds.argmax(1, keepdim=True)
+        fid_plus_prob = (baseline_preds.gather(1, idx) - neg_preds.gather(1, idx)).abs().mean()
+    return fid_plus_prob
 
 def fid_minus_prob(pos_preds, baseline_preds):
-    pos_preds = torch.softmax(pos_preds, dim=1)
-    baseline_preds = torch.softmax(baseline_preds, dim=1)
-    idx = baseline_preds.argmax(1, keepdim=True)
-    return (baseline_preds.gather(1, idx) - pos_preds.gather(1, idx)).abs().mean()
+    with torch.no_grad():
+        pos_preds = torch.softmax(pos_preds, dim=1)
+        baseline_preds = torch.softmax(baseline_preds, dim=1)
+        idx = baseline_preds.argmax(1, keepdim=True)
+        fid_minus_prob = (baseline_preds.gather(1, idx) - pos_preds.gather(1, idx)).abs().mean()
+    return fid_minus_prob
 
-def fid_plus_acc(neg_preds, baseline_preds):
+def fid_plus_class(neg_preds, baseline_preds):
     return 1.0 - (neg_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
 
-def fid_minus_acc(pos_preds, baseline_preds):
+def fid_minus_class(pos_preds, baseline_preds):
     return 1.0 - (pos_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
+
+def fid_plus_reg(neg_preds, baseline_preds):
+    return F.mse_loss(neg_preds, baseline_preds, reduction="mean").item()
+
+def fid_minus_reg(pos_preds, baseline_preds):
+    return F.mse_loss(pos_preds, baseline_preds, reduction="mean").item()
 
 def precision_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()

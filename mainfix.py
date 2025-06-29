@@ -7,7 +7,7 @@ import networkx as nx
 import torch
 from BAMotifs import (
     BaseBAMotifs, BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs,
-    BAORMotifs, BAXORMotifs, BAANDMotifs
+    BAORMotifs, BAXORMotifs, BAANDMotifs, BAVolumeMotifs
 )
 from MolecularDataset import MolecularDataset, AlkaneCarbonylDataset, BenzeneDataset, FluorideCarbonylDataset
 from torch_geometric.datasets import GNNBenchmarkDataset
@@ -68,13 +68,14 @@ def load_dataset(config, data_path):
         return BAXORMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAANDMotifs':
         return BAANDMotifs(data_path, **dataset_params)
+    elif dataset_name == 'BAVolumeMotifs':
+        return BAVolumeMotifs(data_path, **dataset_params)
     elif config['dataset'] == 'AlkaneCarbonyl':
         return AlkaneCarbonylDataset(data_path)
     elif config['dataset'] == 'Benzene':
         return BenzeneDataset(data_path)
     elif config['dataset'] == 'FluorideCarbonyl':
         return FluorideCarbonylDataset(data_path)
-    #
     elif config['dataset'] == 'MNIST':
         class SuperPixelTransform(object):
             def __call__(self, data):
@@ -137,6 +138,8 @@ if config['task_type'] == 'classification':
     class_weights /= class_weights.sum()
     config['class_weights'] = class_weights
     logging.info(f"Class weights: {config['class_weights']}")
+else:
+    config['class_weights'] = None
 
 num_node_features = dataset[0].x.shape[1]
 num_edge_features = 0 if dataset[0].edge_attr is None else dataset[0].edge_attr.shape[1]
@@ -209,7 +212,7 @@ if explainer_pretrained is None:
         #     logging.info(f'Sparsity updated: {explainer.sparsity:.4f}')
         train_metrics = explainer.train_batch(train_loader)
         val_metrics = explainer.evaluate_batch(val_loader)
-        val_fid_diff = val_metrics['fidplus_prob'] - val_metrics['fidminus_prob']
+        val_fid_diff = val_metrics['fidplus'] - val_metrics['fidminus']
         if val_fid_diff > best_val_fid_diff and val_metrics['sparsity'] < config['sparsity'] + 0.01:
             best_val_fid_diff = val_fid_diff
             logging.info(f'Best validation fidelity difference updated: {best_val_fid_diff:.4f}, saving explainer...')
