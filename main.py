@@ -5,19 +5,23 @@ import time
 import numpy as np
 import networkx as nx
 import torch
-from BAMotifs import (
-    BaseBAMotifs, BAMotifs, BAImbalancedMotifs, BAIgnoringMotifs,
+from src.BAMotifs import (
+    BaseBAMotifs, BAMotifs,
+    BAImbalancedMotifs, BAIgnoringMotifs,
     BAORMotifs, BAXORMotifs, BAANDMotifs, BAVolumeMotifs
 )
-from MolecularDataset import MolecularDataset, AlkaneCarbonylDataset, BenzeneDataset, FluorideCarbonylDataset
+from src.MolecularDataset import (
+    MolecularDataset, AlkaneCarbonylDataset,
+    BenzeneDataset, FluorideCarbonylDataset
+)
 from torch_geometric.datasets import GNNBenchmarkDataset
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 from torch_geometric.utils import to_networkx
-from GNN import GNN
-from Explainer import Explainer
-from utils import log_metrics, log_metrics_tb
-from metrics import save_tsneplot, save_cmplot, save_regplot
+from src.GNN import GNN
+from src.Explainer import Explainer
+from src.utils import log_metrics, log_metrics_tb
+from src.metrics import save_tsneplot, save_cmplot, save_regplot
 import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 

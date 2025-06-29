@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
-from GNN import GNBlock, MLPBlock
-from utils import apply_mask, tensor_to_list, tensor_batch_to_list
-from metrics import (
+from src.GNN import GNBlock, MLPBlock
+from src.utils import apply_mask, tensor_to_list, tensor_batch_to_list
+from src.metrics import (
     fid_plus_prob, fid_minus_prob,
     fid_plus_class, fid_minus_class,
     fid_minus_reg, fid_plus_reg,
@@ -198,6 +198,9 @@ class Explainer(nn.Module):
             target = baseline_logits.argmax(dim=1) if self.task_type == 'classification' else baseline_logits
             probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
+            # k = max(1, int(self.sparsity * probs.numel()))
+            # threshold = torch.topk(probs.squeeze(-1), k).values.min()
+            # mask = (probs >= threshold).float()
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
             pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
@@ -241,6 +244,9 @@ class Explainer(nn.Module):
             data = data.to(self.device)
             probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
+            # k = max(1, int(self.sparsity * probs.numel()))
+            # threshold = torch.topk(probs.squeeze(-1), k).values.min()
+            # mask = (probs >= threshold).float()
             y_probs += tensor_batch_to_list(probs, data.batch)
             y_masks += tensor_batch_to_list(mask, data.batch)
             if hasattr(data, 'true'):

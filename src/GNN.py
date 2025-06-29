@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from torchmetrics import MeanSquaredError, F1Score
-from GNLayer import GNLayer
-from utils import tensor_to_list
+from src.GNLayer import GNLayer
+from src.utils import tensor_to_list
 
 class MLPBlock(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
