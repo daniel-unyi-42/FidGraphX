@@ -13,7 +13,7 @@
 
 ```bash
 # clone and install
-$ git clone https://github.com/daniel-unyi-42/RLGraphS && cd rlgraphs
+$ git clone https://github.com/daniel-unyi-42/RLGraphS && cd RLGraphS
 $ docker build -t rlgraphs-explainer .
 $ docker compose up
 
@@ -39,6 +39,8 @@ The difference **Fid– – Fid+** is the *reward* for REINFORCE updates.
 | Dataset           | Task           | Metric | RLGraphS | RegExplainer |
 | ------------------| ---------------| ------ | -------- | ------------ |
 | BA‑VolumeMotifs   | regression     | AUC ↑  | **0.94** | 0.76         |
+
+<img src="images/motifplot.png" alt="drawing" width="640"/>
 
 ## ✏️ Citing RLGraphS
 
