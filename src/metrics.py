@@ -65,7 +65,7 @@ def iou_score(pred_explanations, true_explanations):
 def auc_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return roc_auc_score_sklearn(true_explanations, pred_explanations, average='macro', multi_class='ovr')
+    return roc_auc_score_sklearn(true_explanations, pred_explanations, average='macro')
 
 def save_cmplot(y_true, y_pred, save_path):
     y_pred = [pred.argmax() for pred in y_pred]

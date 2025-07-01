@@ -229,7 +229,7 @@ class Explainer(nn.Module):
                 metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
-                metrics['f1'] += f1_score(mask, data.true),
+                metrics['f1'] += f1_score(mask, data.true)
                 metrics['iou'] += iou_score(mask, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
