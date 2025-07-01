@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
-from sklearn.metrics import adjusted_mutual_info_score as adjusted_mutual_info_score_sklearn
+from sklearn.metrics import jaccard_score as jaccard_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 from sklearn.metrics import confusion_matrix
 from sklearn.manifold import TSNE
@@ -45,22 +45,22 @@ def fid_minus_reg(pos_preds, baseline_preds):
 def precision_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return precision_score_sklearn(pred_explanations, true_explanations, average='macro', zero_division=0)
+    return precision_score_sklearn(true_explanations, pred_explanations, average='macro', zero_division=0)
 
 def recall_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return recall_score_sklearn(pred_explanations, true_explanations, average='macro', zero_division=0)
+    return recall_score_sklearn(true_explanations, pred_explanations, average='macro', zero_division=0)
 
 def f1_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return f1_score_sklearn(pred_explanations, true_explanations, average='macro')
+    return f1_score_sklearn(true_explanations, pred_explanations, average='macro')
 
-def ami_score(pred_explanations, true_explanations):
+def iou_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return adjusted_mutual_info_score_sklearn(pred_explanations, true_explanations)
+    return jaccard_score_sklearn(true_explanations, pred_explanations, average='macro')
 
 def auc_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
