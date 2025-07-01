@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
-from sklearn.metrics import ami_score as adjusted_mutual_info_score_sklearn
+from sklearn.metrics import adjusted_mutual_info_score as adjusted_mutual_info_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 from sklearn.metrics import confusion_matrix
 from sklearn.manifold import TSNE
