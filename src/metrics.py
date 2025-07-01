@@ -4,10 +4,11 @@ import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
-from sklearn.metrics import jaccard_score as jaccard_score_sklearn
+from sklearn.metrics import ami_score as adjusted_mutual_info_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 from sklearn.metrics import confusion_matrix
 from sklearn.manifold import TSNE
+from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -56,10 +57,10 @@ def f1_score(pred_explanations, true_explanations):
     true_explanations = true_explanations.detach().cpu().numpy()
     return f1_score_sklearn(pred_explanations, true_explanations, average='macro')
 
-def iou_score(pred_explanations, true_explanations):
+def ami_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return jaccard_score_sklearn(pred_explanations, true_explanations, average='macro')
+    return adjusted_mutual_info_score_sklearn(pred_explanations, true_explanations)
 
 def auc_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()

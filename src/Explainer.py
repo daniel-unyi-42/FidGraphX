@@ -8,8 +8,8 @@ from src.metrics import (
     fid_plus_prob, fid_minus_prob,
     fid_plus_class, fid_minus_class,
     fid_minus_reg, fid_plus_reg,
-    auc_score, precision_score,
-    recall_score, iou_score
+    precision_score, recall_score, f1_score,
+    auc_score, ami_score
 )
 
 class Explainer(nn.Module):
@@ -97,7 +97,8 @@ class Explainer(nn.Module):
             'auc': 0.0,
             'precision': 0.0,
             'recall': 0.0,
-            'iou': 0.0
+            'f1': 0.0,
+            'ami': 0.0
         }
         for data in loader:
             data = data.to(self.device)
@@ -165,7 +166,8 @@ class Explainer(nn.Module):
                 metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
-                metrics['iou'] += iou_score(mask, data.true)
+                metrics['f1'] += f1_score(mask, data.true)
+                metrics['ami'] += ami_score(mask, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
@@ -190,7 +192,8 @@ class Explainer(nn.Module):
             'auc': 0.0,
             'precision': 0.0,
             'recall': 0.0,
-            'iou': 0.0
+            'f1': 0.0,
+            'ami': 0.0
         }
         for data in loader:
             data = data.to(self.device)
@@ -226,7 +229,8 @@ class Explainer(nn.Module):
                 metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
-                metrics['iou'] += iou_score(mask, data.true)
+                metrics['f1'] += f1_score(mask, data.true),
+                metrics['ami'] += ami_score(mask, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
