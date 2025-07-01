@@ -12,8 +12,6 @@ from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# TODO: Fidelity metrics should support regression tasks as well
-
 def fid_plus_prob(neg_preds, baseline_preds):
     with torch.no_grad():
         neg_preds = torch.softmax(neg_preds, dim=1)
