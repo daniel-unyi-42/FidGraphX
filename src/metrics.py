@@ -4,8 +4,9 @@ import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
-from sklearn.metrics import jaccard_score as jaccard_score_sklearn
 from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import auc
 from sklearn.metrics import confusion_matrix
 from sklearn.manifold import TSNE
 from sklearn.metrics import r2_score
@@ -28,11 +29,25 @@ def fid_minus_prob(pos_preds, baseline_preds):
         fid_minus_prob = (baseline_preds.gather(1, idx) - pos_preds.gather(1, idx)).abs().mean()
     return fid_minus_prob
 
-def fid_plus_class(neg_preds, baseline_preds):
+def fid_plus_acc(neg_preds, baseline_preds):
     return 1.0 - (neg_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
 
-def fid_minus_class(pos_preds, baseline_preds):
+def fid_minus_acc(pos_preds, baseline_preds):
     return 1.0 - (pos_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
+
+def fid_plus_tv(neg_preds, baseline_preds):
+    with torch.no_grad():
+        neg_preds = torch.softmax(neg_preds, dim=1)
+        baseline_preds = torch.softmax(baseline_preds, dim=1)
+        fid_plus_tv = 0.5 * (neg_preds - baseline_preds).abs().sum(dim=1)
+    return fid_plus_tv.mean().item()
+
+def fid_minus_tv(pos_preds, baseline_preds):
+    with torch.no_grad():
+        pos_preds = torch.softmax(pos_preds, dim=1)
+        baseline_preds = torch.softmax(baseline_preds, dim=1)
+        fid_minus_tv = 0.5 * (pos_preds - baseline_preds).abs().sum(dim=1)
+    return fid_minus_tv.mean().item()
 
 def fid_plus_reg(neg_preds, baseline_preds):
     return F.mse_loss(neg_preds, baseline_preds, reduction="mean").item()
@@ -55,12 +70,13 @@ def f1_score(pred_explanations, true_explanations):
     true_explanations = true_explanations.detach().cpu().numpy()
     return f1_score_sklearn(true_explanations, pred_explanations)
 
-def iou_score(pred_explanations, true_explanations):
+def pr_auc_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
-    return jaccard_score_sklearn(true_explanations, pred_explanations)
+    precision, recall, _ = precision_recall_curve(true_explanations, pred_explanations)
+    return auc(recall, precision)
 
-def auc_score(pred_explanations, true_explanations):
+def roc_auc_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()
     return roc_auc_score_sklearn(true_explanations, pred_explanations, average='macro')

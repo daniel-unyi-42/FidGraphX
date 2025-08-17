@@ -6,10 +6,11 @@ from src.GNN import GNBlock, MLPBlock
 from src.utils import apply_mask, tensor_to_list, tensor_batch_to_list
 from src.metrics import (
     fid_plus_prob, fid_minus_prob,
-    fid_plus_class, fid_minus_class,
+    fid_plus_acc, fid_minus_acc,
+    fid_plus_tv, fid_minus_tv,
     fid_minus_reg, fid_plus_reg,
     precision_score, recall_score, f1_score,
-    auc_score, iou_score
+    roc_auc_score, pr_auc_score
 )
 
 class Explainer(nn.Module):
@@ -68,7 +69,7 @@ class Explainer(nn.Module):
         # the selection budget is the difference between the sparsity target and the L1 norm
         selection_budget = torch.abs(self.sparsity - L1_norm)
         # the custom actor loss is the sum of the reward and the selection budget
-        custom_actor_loss = (reward + self.reward_coeff * selection_budget) * cross_entropy
+        custom_actor_loss = reward * cross_entropy + self.reward_coeff * selection_budget
         return torch.mean(custom_actor_loss)
 
     def forward(self, data):
@@ -92,20 +93,22 @@ class Explainer(nn.Module):
             'neg_metric': 0.0,
             'fidplus_prob': 0.0,
             'fidminus_prob': 0.0,
+            'fidplus_acc': 0.0,
+            'fidminus_acc': 0.0,
             'fidplus': 0.0,
             'fidminus': 0.0,
-            'auc': 0.0,
             'precision': 0.0,
             'recall': 0.0,
             'f1': 0.0,
-            'iou': 0.0
+            'pr_auc': 0.0,
+            'roc_auc': 0.0
         }
         for data in loader:
             data = data.to(self.device)
             with torch.no_grad():
                 baseline_logits = self.baseline(data)
                 if self.task_type == 'classification':
-                    target = baseline_logits.argmax(dim=1)
+                    target = baseline_logits.softmax(dim=1)
                 else:
                     target = baseline_logits
             # train pos_predictor and neg_predictor
@@ -151,23 +154,25 @@ class Explainer(nn.Module):
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
-            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target.argmax(dim=1)).item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target.argmax(dim=1)).item()
             if self.task_type == 'classification':
                 metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
                 metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_class(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_class(pos_logits, baseline_logits)
+                metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
+                metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_tv(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_tv(pos_logits, baseline_logits)
             else:
                 metrics['fidplus'] += fid_plus_reg(neg_logits, baseline_logits)
                 metrics['fidminus'] += fid_minus_reg(pos_logits, baseline_logits)
             if hasattr(data, 'true'):
-                metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
                 metrics['f1'] += f1_score(mask, data.true)
-                metrics['iou'] += iou_score(mask, data.true)
+                metrics['pr_auc'] += pr_auc_score(mask, data.true)
+                metrics['roc_auc'] += roc_auc_score(probs, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
@@ -187,18 +192,20 @@ class Explainer(nn.Module):
             'neg_metric': 0.0,
             'fidplus_prob': 0.0,
             'fidminus_prob': 0.0,
+            'fidplus_acc': 0.0,
+            'fidminus_acc': 0.0,
             'fidplus': 0.0,
             'fidminus': 0.0,
-            'auc': 0.0,
             'precision': 0.0,
             'recall': 0.0,
             'f1': 0.0,
-            'iou': 0.0
+            'pr_auc': 0.0,
+            'roc_auc': 0.0
         }
         for data in loader:
             data = data.to(self.device)
             baseline_logits = self.baseline(data)
-            target = baseline_logits.argmax(dim=1) if self.task_type == 'classification' else baseline_logits
+            target = baseline_logits.softmax(dim=1) if self.task_type == 'classification' else baseline_logits
             probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
             # k = max(1, int(self.sparsity * probs.numel()))
@@ -214,23 +221,25 @@ class Explainer(nn.Module):
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
-            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target.argmax(dim=1)).item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target.argmax(dim=1)).item()
             if self.task_type == 'classification':
                 metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
                 metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_class(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_class(pos_logits, baseline_logits)
+                metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
+                metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_tv(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_tv(pos_logits, baseline_logits)
             else:
                 metrics['fidplus'] += fid_plus_reg(neg_logits, baseline_logits)
                 metrics['fidminus'] += fid_minus_reg(pos_logits, baseline_logits)
             if hasattr(data, 'true'):
-                metrics['auc'] += auc_score(probs, data.true)
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
                 metrics['f1'] += f1_score(mask, data.true)
-                metrics['iou'] += iou_score(mask, data.true)
+                metrics['pr_auc'] += pr_auc_score(mask, data.true)
+                metrics['roc_auc'] += roc_auc_score(probs, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics

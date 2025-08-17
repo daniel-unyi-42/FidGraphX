@@ -140,7 +140,7 @@ if config['task_type'] == 'classification':
         class_counts[data.y] += 1
     class_weights = 1.0 / class_counts
     class_weights /= class_weights.sum()
-    config['class_weights'] = class_weights
+    config['class_weights'] = torch.ones(dataset.num_classes) # class_weights
     logging.info(f"Class weights: {config['class_weights']}")
 else:
     config['class_weights'] = None
