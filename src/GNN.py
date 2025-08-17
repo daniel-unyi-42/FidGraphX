@@ -62,7 +62,7 @@ class GNBlock(nn.Module):
     def forward(self, x, edge_index, edge_attr=None):
         x = self.conv(x, edge_index, edge_attr)
         x = self.act(x)
-        if self.use_norm:
+        if self.use_norm and x.size(0) > 1:
           x = self.norm(x)
         return x
 
