@@ -14,9 +14,10 @@ from src.metrics import (
 )
 
 class Explainer(nn.Module):
-    def __init__(self, baseline, pos_predictor, neg_predictor, sparsity, reward_coeff):
+    def __init__(self, baseline, pos_predictor, neg_predictor, target_type, sparsity, reward_coeff):
         super(Explainer, self).__init__()
         self.task_type = baseline.task_type
+        self.target_type = target_type
         self.sparsity = sparsity
         self.reward_coeff = reward_coeff
         self.baseline = baseline
@@ -107,8 +108,10 @@ class Explainer(nn.Module):
             data = data.to(self.device)
             with torch.no_grad():
                 baseline_logits = self.baseline(data)
-                if self.task_type == 'classification':
+                if self.task_type == 'classification' and self.target_type == 'soft':
                     target = baseline_logits.softmax(dim=1)
+                elif self.task_type == 'classification' and self.target_type == 'hard':
+                    target = baseline_logits.argmax(dim=1)
                 else:
                     target = baseline_logits
             # train pos_predictor and neg_predictor
@@ -128,17 +131,13 @@ class Explainer(nn.Module):
             neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
             neg_loss.mean().backward()
             self.neg_predictor.optimizer.step()
-            with torch.no_grad():
-                reward = -(pos_loss - neg_loss)
-                reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-                self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             # train explainer
             self.pos_predictor.eval()
             self.neg_predictor.eval()
             self.train()
             self.optimizer.zero_grad()
+            probs = self(data)
             with torch.no_grad():
-                probs = self(data)
                 mask = torch.bernoulli(probs)
                 pos_logits = self.pos_predictor(apply_mask(data, mask))
                 neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
@@ -146,7 +145,6 @@ class Explainer(nn.Module):
                 neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
                 reward = -(pos_loss - neg_loss)
                 reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-            probs = self(data)
             self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             self_loss.backward()
             self.optimizer.step()
@@ -154,9 +152,11 @@ class Explainer(nn.Module):
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
-            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target.argmax(dim=1)).item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target.argmax(dim=1)).item()
+            if self.target_type == 'soft':
+                target = target.argmax(dim=1)
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
             if self.task_type == 'classification':
                 metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
                 metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
@@ -205,7 +205,12 @@ class Explainer(nn.Module):
         for data in loader:
             data = data.to(self.device)
             baseline_logits = self.baseline(data)
-            target = baseline_logits.softmax(dim=1) if self.task_type == 'classification' else baseline_logits
+            if self.task_type == 'classification' and self.target_type == 'soft':
+                target = baseline_logits.softmax(dim=1)
+            elif self.task_type == 'classification' and self.target_type == 'hard':
+                target = baseline_logits.argmax(dim=1)
+            else:
+                target = baseline_logits
             probs = self(data) if not random else self.random_forward(data)
             mask = (probs > 0.5).float()
             # k = max(1, int(self.sparsity * probs.numel()))
@@ -221,9 +226,11 @@ class Explainer(nn.Module):
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
-            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target.argmax(dim=1)).item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target.argmax(dim=1)).item()
+            if self.target_type == 'soft':
+                target = target.argmax(dim=1)
+            metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
+            metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
             if self.task_type == 'classification':
                 metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
                 metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)

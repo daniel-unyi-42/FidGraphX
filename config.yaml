@@ -1,9 +1,9 @@
 data_path: "data"
-log_path: "final_logs"
+log_path: "logs"
 
 dataset: "BAMotifs"
 dataset_params:
-  num_graphs: 3000
+  num_graphs: 3500
   attach_prob: 0.2
   min_nodes: 20
   max_nodes: 40
@@ -12,21 +12,22 @@ dataset_params:
 
 task_type: "classification"
 
-conv_type: "NNConv"
+conv_type: "GINConv"
 
 num_layers: 4
 hidden_channels: 64
 use_norm: true
-learning_rate: 0.0002
+learning_rate: 0.0005
 batch_size: 64
-baseline_epochs: 100
+baseline_epochs: 200
 explainer_epochs: 200
 
 baseline_pretrained: null
 explainer_pretrained: null
 
-sparsity: 0.2
-reward_coeff: 2.0
+target_type: "hard"
+sparsity: 0.16
+reward_coeff: 1.0
 
 train_size: 0.8
 val_size: 0.1
