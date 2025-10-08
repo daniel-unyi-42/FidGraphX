@@ -128,55 +128,45 @@ class BAIgnoringMotifs(BaseBAMotifs):
 class BAORMotifs(BaseBAMotifs):
     def _attach_and_label(self, G, all_motifs):
         types = ['house', 'grid']
-        pattern = random.choice([0, 1, 2, 3])
+        label = random.choice([0, 1])
         present = []
-        if pattern == 1:
-            present = [types[0]]
-        elif pattern == 2:
-            present = [types[1]]
-        elif pattern == 3:
-            present = types[:]
+        if label == 0:
+            present = [] # 0 motifs
+        else:
+            present = random.choice([[types[0]], [types[1]], types[:]]) # 1 or 2 motifs
         gt = set()
         for t in present:
             nodes = self._attach_motif(G, all_motifs[t])
             gt.update(nodes)
-        label = 1 if len(present) >= 1 else 0
         return label, gt, None
 
 class BAXORMotifs(BaseBAMotifs):
     def _attach_and_label(self, G, all_motifs):
         types = ['house', 'grid']
-        pattern = random.choice([0, 1, 2, 3])
+        label = random.choice([0, 1])
         present = []
-        if pattern == 1:
-            present = [types[0]]
-        elif pattern == 2:
-            present = [types[1]]
-        elif pattern == 3:
-            present = types[:]
+        if label == 0:
+            present = random.choice([[], types[:]]) # 0 motifs or 2 motifs
+        else:
+            present = random.choice([[types[0]], [types[1]]]) # 1 motif
         gt = set()
         for t in present:
             nodes = self._attach_motif(G, all_motifs[t])
             gt.update(nodes)
-        label = 1 if len(present) == 1 else 0
         return label, gt, None
 
 class BAANDMotifs(BaseBAMotifs):
     def _attach_and_label(self, G, all_motifs):
         types = ['house', 'grid']
-        pattern = random.choice([0, 1, 2, 3])
-        present = []
-        if pattern == 3:
-            present = types[:]
-        elif pattern == 1:
-            present = [types[0]]
-        elif pattern == 2:
-            present = [types[1]]
+        label = random.choice([0, 1])
+        if label == 0:
+            present = random.choice([[], [types[0]], [types[1]]]) # 0 or 1 motifs
+        else:
+            present = types[:] # 2 motifs
         gt = set()
         for t in present:
             nodes = self._attach_motif(G, all_motifs[t])
             gt.update(nodes)
-        label = 1 if len(present) == 2 else 0
         return label, gt, None
 
 class BAVolumeMotifs(BaseBAMotifs):
