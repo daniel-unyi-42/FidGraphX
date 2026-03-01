@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -30,24 +31,38 @@ def fid_minus_prob(pos_preds, baseline_preds):
     return fid_minus_prob
 
 def fid_plus_acc(neg_preds, baseline_preds):
-    return 1.0 - (neg_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
+    return 1.0 - (neg_preds.argmax(dim=1) == baseline_preds.argmax(dim=1)).float().mean()
 
 def fid_minus_acc(pos_preds, baseline_preds):
-    return 1.0 - (pos_preds.argmax(axis=1) == baseline_preds.argmax(axis=1)).float().mean()
+    return 1.0 - (pos_preds.argmax(dim=1) == baseline_preds.argmax(dim=1)).float().mean()
 
-def fid_plus_tv(neg_preds, baseline_preds):
+
+def _normal_cdf(x):
+    return 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+def fid_plus_cat_tv(neg_preds, baseline_preds):
     with torch.no_grad():
         neg_preds = torch.softmax(neg_preds, dim=1)
         baseline_preds = torch.softmax(baseline_preds, dim=1)
         fid_plus_tv = 0.5 * (neg_preds - baseline_preds).abs().sum(dim=1)
     return fid_plus_tv.mean().item()
 
-def fid_minus_tv(pos_preds, baseline_preds):
+def fid_minus_cat_tv(pos_preds, baseline_preds):
     with torch.no_grad():
         pos_preds = torch.softmax(pos_preds, dim=1)
         baseline_preds = torch.softmax(baseline_preds, dim=1)
         fid_minus_tv = 0.5 * (pos_preds - baseline_preds).abs().sum(dim=1)
     return fid_minus_tv.mean().item()
+
+def fid_plus_reg_tv(neg_preds, baseline_preds):
+    with torch.no_grad():
+        tvd = 2 * _normal_cdf((neg_preds - baseline_preds).abs() / 2) - 1
+        return tvd.mean().item()
+    
+def fid_minus_reg_tv(pos_preds, baseline_preds):
+    with torch.no_grad():
+        tvd = 2 * _normal_cdf((pos_preds - baseline_preds).abs() / 2) - 1
+        return tvd.mean().item()
 
 def fid_plus_reg(neg_preds, baseline_preds):
     return F.mse_loss(neg_preds, baseline_preds, reduction="mean").item()

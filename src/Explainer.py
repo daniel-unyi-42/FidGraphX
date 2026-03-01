@@ -7,8 +7,8 @@ from src.utils import apply_mask, tensor_to_list, tensor_batch_to_list
 from src.metrics import (
     fid_plus_prob, fid_minus_prob,
     fid_plus_acc, fid_minus_acc,
-    fid_plus_tv, fid_minus_tv,
-    fid_minus_reg, fid_plus_reg,
+    fid_plus_cat_tv, fid_minus_cat_tv,
+    fid_minus_reg_tv, fid_plus_reg_tv,
     precision_score, recall_score, f1_score,
     roc_auc_score, pr_auc_score
 )
@@ -162,11 +162,11 @@ class Explainer(nn.Module):
                 metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
                 metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
                 metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_tv(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
             else:
-                metrics['fidplus'] += fid_plus_reg(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_reg(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
             if hasattr(data, 'true'):
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
@@ -236,11 +236,11 @@ class Explainer(nn.Module):
                 metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
                 metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
                 metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_tv(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
             else:
-                metrics['fidplus'] += fid_plus_reg(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_reg(pos_logits, baseline_logits)
+                metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
+                metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
             if hasattr(data, 'true'):
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
