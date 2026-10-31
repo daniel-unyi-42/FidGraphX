@@ -67,6 +67,34 @@ def fid_plus_reg(neg_preds, baseline_preds):
 def fid_minus_reg(pos_preds, baseline_preds):
     return F.mse_loss(pos_preds, baseline_preds, reduction="mean").item()
 
+def accumulate_explanation_metrics(
+    metrics,
+    mask,
+    probs,
+    true_explanations,
+    pos_logits,
+    neg_logits,
+    baseline_logits,
+    task_type,
+):
+    if task_type == 'classification':
+        metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
+        metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
+        metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
+        metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
+        metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
+        metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
+    else:
+        metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
+        metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
+
+    if true_explanations is not None:
+        metrics['precision'] += precision_score(mask, true_explanations)
+        metrics['recall'] += recall_score(mask, true_explanations)
+        metrics['f1'] += f1_score(mask, true_explanations)
+        metrics['pr_auc'] += pr_auc_score(probs, true_explanations)
+        metrics['roc_auc'] += roc_auc_score(probs, true_explanations)
+
 def precision_score(pred_explanations, true_explanations):
     pred_explanations = pred_explanations.detach().cpu().numpy()
     true_explanations = true_explanations.detach().cpu().numpy()

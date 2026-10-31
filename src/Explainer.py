@@ -4,14 +4,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from src.GNN import GNBlock, MLPBlock
 from src.utils import apply_mask, tensor_to_list, tensor_batch_to_list
-from src.metrics import (
-    fid_plus_prob, fid_minus_prob,
-    fid_plus_acc, fid_minus_acc,
-    fid_plus_cat_tv, fid_minus_cat_tv,
-    fid_minus_reg_tv, fid_plus_reg_tv,
-    precision_score, recall_score, f1_score,
-    roc_auc_score, pr_auc_score
-)
+from src.metrics import accumulate_explanation_metrics
 
 class Explainer(nn.Module):
     def __init__(self, baseline, pos_predictor, neg_predictor, target_type, sparsity, reward_coeff):
@@ -172,22 +165,16 @@ class Explainer(nn.Module):
                 target = target.argmax(dim=1)
             metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
             metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
-            if self.task_type == 'classification':
-                metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
-                metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-                metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
-                metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
-            else:
-                metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
-            if hasattr(data, 'true'):
-                metrics['precision'] += precision_score(mask, data.true)
-                metrics['recall'] += recall_score(mask, data.true)
-                metrics['f1'] += f1_score(mask, data.true)
-                metrics['pr_auc'] += pr_auc_score(probs, data.true)
-                metrics['roc_auc'] += roc_auc_score(probs, data.true)
+            accumulate_explanation_metrics(
+                metrics,
+                mask,
+                probs,
+                data.true if hasattr(data, 'true') else None,
+                pos_logits,
+                neg_logits,
+                baseline_logits,
+                self.task_type,
+            )
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
@@ -243,22 +230,16 @@ class Explainer(nn.Module):
                 target = target.argmax(dim=1)
             metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
             metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
-            if self.task_type == 'classification':
-                metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
-                metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-                metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
-                metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
-            else:
-                metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
-            if hasattr(data, 'true'):
-                metrics['precision'] += precision_score(mask, data.true)
-                metrics['recall'] += recall_score(mask, data.true)
-                metrics['f1'] += f1_score(mask, data.true)
-                metrics['pr_auc'] += pr_auc_score(probs, data.true)
-                metrics['roc_auc'] += roc_auc_score(probs, data.true)
+            accumulate_explanation_metrics(
+                metrics,
+                mask,
+                probs,
+                data.true if hasattr(data, 'true') else None,
+                pos_logits,
+                neg_logits,
+                baseline_logits,
+                self.task_type,
+            )
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
