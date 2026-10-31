@@ -12,7 +12,8 @@ from src.BAMotifs import (
 from src.MolecularDataset import (
     MolecularDataset, BenzeneDataset, BenzeneCountDataset
 )
-from src.PowerGrid import PowerGrid
+# from src.PowerGrid import PowerGrid
+from src.DHCPScanAge import DHCPScanAgeDataset
 from torch_geometric.datasets import GNNBenchmarkDataset, CoMA
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
@@ -61,7 +62,9 @@ os.makedirs(data_path, exist_ok=True)
 def load_dataset(config, data_path):
     dataset_name = config['dataset']
     dataset_params = config['dataset_params']
-    if dataset_name == 'BAMotifs':
+    if dataset_name == 'DHCPScanAge':
+        return DHCPScanAgeDataset(root='dHCP', **dataset_params)
+    elif dataset_name == 'BAMotifs':
         return BAMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAORMotifs':
         return BAORMotifs(data_path, **dataset_params)
@@ -132,9 +135,10 @@ train_set, val_set, test_set = torch.utils.data.random_split(
 )
 
 # create data loaders
-train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True)
-val_loader = DataLoader(val_set, batch_size=len(val_set))
-test_loader = DataLoader(test_set, batch_size=len(test_set))
+train_loader = DataLoader(train_set, batch_size=config['train_batch_size'], shuffle=True)
+eval_batch_size = config['eval_batch_size']
+val_loader = DataLoader(val_set, batch_size=eval_batch_size)
+test_loader = DataLoader(test_set, batch_size=eval_batch_size)
 
 if hasattr(dataset[0], 'true'):
     expected_sparsity = np.array([data.true.sum().item() / data.num_nodes for data in train_loader]).mean()
