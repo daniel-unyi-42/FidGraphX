@@ -83,6 +83,7 @@ def load_dataset(config, data_path):
             def __call__(self, data):
                 data = T.ToUndirected()(data)
                 data.x = torch.cat([data.x, data.pos], dim=1)
+                data.edge_attr = data.edge_attr.unsqueeze(-1)
                 indices = torch.topk(data.x[:,0], k=15).indices
                 node_mask = torch.zeros(data.num_nodes, dtype=torch.long)
                 node_mask[indices] = 1
