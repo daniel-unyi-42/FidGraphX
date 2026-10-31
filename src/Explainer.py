@@ -80,10 +80,21 @@ class Explainer(nn.Module):
         x = self.head(x)
         return torch.sigmoid(x)
     
-    def random_forward(self, data):
-        return torch.rand((data.num_nodes, 1), device=self.device)
+    def get_probs(self, data):
+        return self(data)
+
+    @torch.no_grad()
+    def sample_mask(self, data, mode='eval', probs=None):
+        if probs is None:
+            probs = self.get_probs(data)
+        mask = torch.bernoulli(probs)
+        if mask.sum() == 0:
+            mask[torch.argmax(probs)] = 1.0
+        if (1.0 - mask).sum() == 0:
+            mask[torch.argmin(probs)] = 0.0
+        return mask
     
-    def train_batch(self, loader):
+    def train_batch(self, loader, train_explainer=True):
         self.baseline.eval()
         metrics = {
             'explainer_loss': 0.0,
@@ -121,8 +132,8 @@ class Explainer(nn.Module):
             self.neg_predictor.train()
             self.neg_predictor.optimizer.zero_grad()
             with torch.no_grad():
-                probs = self(data)
-                mask = torch.bernoulli(probs)
+                probs = self.get_probs(data)
+                mask = self.sample_mask(data, mode='train', probs=probs)
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
             pos_loss.mean().backward()
@@ -132,28 +143,32 @@ class Explainer(nn.Module):
             neg_loss.mean().backward()
             self.neg_predictor.optimizer.step()
             # train explainer
-            self.pos_predictor.eval()
-            self.neg_predictor.eval()
-            self.train()
-            self.optimizer.zero_grad()
-            probs = self(data)
-            with torch.no_grad():
-                mask = torch.bernoulli(probs)
-                pos_logits = self.pos_predictor(apply_mask(data, mask))
-                neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-                pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
-                neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
-                reward = -(pos_loss - neg_loss)
-                reward = (reward - reward.mean()) / (reward.std() + 1e-8)
-            self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
-            self_loss.backward()
-            self.optimizer.step()
+            if train_explainer:
+                self.train()
+                self.pos_predictor.eval()
+                self.neg_predictor.eval()
+                self.baseline.eval()
+                self.optimizer.zero_grad()
+                probs = self(data)
+                with torch.no_grad():
+                    mask = torch.bernoulli(probs)
+                    pos_logits = self.pos_predictor(apply_mask(data, mask))
+                    neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+                    pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
+                    neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
+                    reward = -(pos_loss - neg_loss).view(-1)
+                    reward = (reward - reward.mean()) / (reward.std() + 1e-8)
+                self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
+                self_loss.backward()
+                self.optimizer.step()
+            else:
+                self_loss = torch.tensor(0.0, device=self.device)
             # record metrics
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            if self.target_type == 'soft':
+            if self.task_type == 'classification' and self.target_type == 'soft':
                 target = target.argmax(dim=1)
             metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
             metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
@@ -171,14 +186,14 @@ class Explainer(nn.Module):
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
                 metrics['f1'] += f1_score(mask, data.true)
-                metrics['pr_auc'] += pr_auc_score(mask, data.true)
+                metrics['pr_auc'] += pr_auc_score(probs, data.true)
                 metrics['roc_auc'] += roc_auc_score(probs, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
 
     @torch.no_grad()
-    def evaluate_batch(self, loader, random=False):
+    def evaluate_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.baseline.eval()
@@ -211,23 +226,20 @@ class Explainer(nn.Module):
                 target = baseline_logits.argmax(dim=1)
             else:
                 target = baseline_logits
-            probs = self(data) if not random else self.random_forward(data)
-            mask = (probs > 0.5).float()
-            # k = max(1, int(self.sparsity * probs.numel()))
-            # threshold = torch.topk(probs.squeeze(-1), k).values.min()
-            # mask = (probs >= threshold).float()
+            probs = self.get_probs(data)
+            mask = self.sample_mask(data, probs=probs)
             pos_logits = self.pos_predictor(apply_mask(data, mask))
             neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
             pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
             neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
-            reward = -(pos_loss - neg_loss)
+            reward = -(pos_loss - neg_loss).view(-1)
             reward = (reward - reward.mean()) / (reward.std() + 1e-8)
             self_loss = self.criterion(reward, mask, probs, data.batch, data.batch_size)
             metrics['explainer_loss'] += self_loss.item()
             metrics['sparsity'] += mask.mean().item()
             metrics['pos_loss'] += pos_loss.mean().item()
             metrics['neg_loss'] += neg_loss.mean().item()
-            if self.target_type == 'soft':
+            if self.task_type == 'classification' and self.target_type == 'soft':
                 target = target.argmax(dim=1)
             metrics['pos_metric'] += self.pos_predictor.metric(pos_logits, target).item()
             metrics['neg_metric'] += self.neg_predictor.metric(neg_logits, target).item()
@@ -245,14 +257,14 @@ class Explainer(nn.Module):
                 metrics['precision'] += precision_score(mask, data.true)
                 metrics['recall'] += recall_score(mask, data.true)
                 metrics['f1'] += f1_score(mask, data.true)
-                metrics['pr_auc'] += pr_auc_score(mask, data.true)
+                metrics['pr_auc'] += pr_auc_score(probs, data.true)
                 metrics['roc_auc'] += roc_auc_score(probs, data.true)
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
 
     @torch.no_grad()
-    def explain_batch(self, loader, random=False):
+    def explain_batch(self, loader):
         self.pos_predictor.eval()
         self.neg_predictor.eval()
         self.eval()
@@ -262,11 +274,8 @@ class Explainer(nn.Module):
         y_trues = []
         for data in loader:
             data = data.to(self.device)
-            probs = self(data) if not random else self.random_forward(data)
-            mask = (probs > 0.5).float()
-            # k = max(1, int(self.sparsity * probs.numel()))
-            # threshold = torch.topk(probs.squeeze(-1), k).values.min()
-            # mask = (probs >= threshold).float()
+            probs = self.get_probs(data)
+            mask = self.sample_mask(data, probs=probs)
             y_probs += tensor_batch_to_list(probs, data.batch)
             y_masks += tensor_batch_to_list(mask, data.batch)
             if hasattr(data, 'true'):
