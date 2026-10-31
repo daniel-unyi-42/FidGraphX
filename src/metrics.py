@@ -1,7 +1,6 @@
 import math
 import torch
 import torch.nn.functional as F
-import numpy as np
 from sklearn.metrics import f1_score as f1_score_sklearn
 from sklearn.metrics import precision_score as precision_score_sklearn
 from sklearn.metrics import recall_score as recall_score_sklearn
@@ -9,8 +8,6 @@ from sklearn.metrics import roc_auc_score as roc_auc_score_sklearn
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import auc
 from sklearn.metrics import confusion_matrix
-from sklearn.manifold import TSNE
-from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -103,39 +100,4 @@ def save_cmplot(y_true, y_pred, save_path):
     plt.xlabel('Predicted')
     plt.ylabel('True')
     plt.savefig(save_path)
-    plt.close()
-
-def save_regplot(y_true, y_pred, save_path, title="Regression Results"):
-    y_true = np.array(y_true).flatten()
-    y_pred = np.array(y_pred).flatten()
-    r2 = r2_score(y_true, y_pred)    
-    slope = np.sum(y_true * y_pred) / np.sum(y_true ** 2)
-    x_vals = np.array([y_true.min(), y_true.max()])
-    y_vals = slope * x_vals    
-    plt.figure(figsize=(6,6))
-    sns.scatterplot(x=y_true, y=y_pred, markers='x', color='blue')
-    plt.plot(x_vals, x_vals, 'k--', lw=2)
-    plt.plot(x_vals, y_vals, 'k-')
-    plt.text(0.05, 0.95, f"$R^2$ = {r2:.3f}", transform=plt.gca().transAxes,
-             fontsize=12, verticalalignment='top')
-    plt.xlabel("True values", fontsize=12)
-    plt.ylabel("Predicted values", fontsize=12)
-    plt.title(title, fontsize=14)
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300)
-    plt.close()
-
-def save_tsneplot(y_true, emb, save_path):
-    tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-    emb_2d = tsne.fit_transform(np.array(emb))
-    plt.figure(figsize=(4, 4))
-    plt.scatter(emb_2d[:, 0], emb_2d[:, 1], c=y_true, alpha=0.9)
-    plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-    for spine in plt.gca().spines.values():
-        spine.set_visible(True)
-    plt.title("t-SNE of Graph-level Embeddings", fontsize=12)
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches="tight", pad_inches=0.05)
     plt.close()

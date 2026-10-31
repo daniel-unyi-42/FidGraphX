@@ -43,6 +43,6 @@ logging: true
 tb_logging: true
 seed: 0
 
-retrain_predictors: false
+retrain_predictors: true
 
 visualize_predictions: true
