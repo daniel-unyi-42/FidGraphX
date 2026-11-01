@@ -2,6 +2,7 @@ import csv
 import hashlib
 import json
 import os
+import warnings
 from pathlib import Path
 
 import nibabel as nib
@@ -39,20 +40,30 @@ class DHCPScanAgeDataset(InMemoryDataset):
         if self.target != "scan_age":
             raise ValueError("DHCPScanAgeDataset only supports the 'scan_age' target")
 
-        self.ids = self._read_ids(split_files)
+        scan_ids = self._read_ids(split_files)
+        self.ids = []
+        missing_assets = []
+        for scan_id in scan_ids:
+            surface_path, feature_path = self._asset_paths(scan_id)
+            if not surface_path.is_file() or ("x" in self.features and not feature_path.is_file()):
+                missing_assets.append(scan_id)
+            else:
+                self.ids.append(scan_id)
+        if missing_assets:
+            warnings.warn(
+                f"Skipping {len(missing_assets)} scans with missing surface or feature assets; "
+                f"examples: {missing_assets[:5]}",
+                UserWarning,
+                stacklevel=2,
+            )
+        if not self.ids:
+            raise ValueError("No scans have all required surface and feature assets")
+
         self.id_set = set(self.ids)
         self.labels = self._read_labels()
         missing_labels = [scan_id for scan_id in self.ids if scan_id not in self.labels]
         if missing_labels:
             raise ValueError(f"Missing {self.target!r} labels for scans: {missing_labels[:5]}")
-
-        missing_assets = []
-        for scan_id in self.ids:
-            surface_path, feature_path = self._asset_paths(scan_id)
-            if not surface_path.is_file() or ("x" in self.features and not feature_path.is_file()):
-                missing_assets.append(scan_id)
-        if missing_assets:
-            raise FileNotFoundError(f"Missing surface or feature assets for scans: {missing_assets[:5]}")
 
         source_files = [self.data_root / "combined.tsv"]
         source_files.extend(self.data_root / split_file for split_file in split_files)

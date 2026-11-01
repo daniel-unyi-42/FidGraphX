@@ -64,7 +64,7 @@ def load_dataset(config, data_path):
     dataset_name = config['dataset']
     dataset_params = config['dataset_params']
     if dataset_name == 'DHCPScanAge':
-        return DHCPScanAgeDataset(root='dHCP', **dataset_params)
+        return DHCPScanAgeDataset(data_path, **dataset_params)
     elif dataset_name == 'BAMotifs':
         return BAMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAORMotifs':
