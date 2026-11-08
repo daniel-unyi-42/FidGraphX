@@ -87,7 +87,7 @@ class Explainer(nn.Module):
             mask[torch.argmin(probs)] = 0.0
         return mask
     
-    def train_batch(self, loader, train_explainer=True):
+    def train_batch(self, loader, train_explainer=True, train_predictors=True):
         self.baseline.eval()
         metrics = {
             'explainer_loss': 0.0,
@@ -120,21 +120,22 @@ class Explainer(nn.Module):
                     target = baseline_logits
             # train pos_predictor and neg_predictor
             self.eval()
-            self.pos_predictor.train()
-            self.pos_predictor.optimizer.zero_grad()
-            self.neg_predictor.train()
-            self.neg_predictor.optimizer.zero_grad()
-            with torch.no_grad():
-                probs = self.get_probs(data)
-                mask = self.sample_mask(data, mode='train', probs=probs)
-            pos_logits = self.pos_predictor(apply_mask(data, mask))
-            pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
-            pos_loss.mean().backward()
-            self.pos_predictor.optimizer.step()
-            neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
-            neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
-            neg_loss.mean().backward()
-            self.neg_predictor.optimizer.step()
+            if train_predictors:
+                self.pos_predictor.train()
+                self.neg_predictor.train()
+                self.pos_predictor.optimizer.zero_grad()
+                self.neg_predictor.optimizer.zero_grad()
+                with torch.no_grad():
+                    probs = self.get_probs(data)
+                    mask = self.sample_mask(data, mode='train', probs=probs)
+                pos_logits = self.pos_predictor(apply_mask(data, mask))
+                pos_loss = self.pos_predictor.criterion(pos_logits, target, reduction='none')
+                pos_loss.mean().backward()
+                self.pos_predictor.optimizer.step()
+                neg_logits = self.neg_predictor(apply_mask(data, 1.0 - mask))
+                neg_loss = self.neg_predictor.criterion(neg_logits, target, reduction='none')
+                neg_loss.mean().backward()
+                self.neg_predictor.optimizer.step()
             # train explainer
             if train_explainer:
                 self.train()

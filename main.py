@@ -11,8 +11,7 @@ from src.BAMotifs import (
 from src.MolecularDataset import (
     BenzeneDataset, BenzeneCountDataset
 )
-# from src.PowerGrid import PowerGrid
-from src.DHCPScanAge import DHCPScanAgeDataset
+from src.RelSC import RelSCDataset
 from torch_geometric.datasets import GNNBenchmarkDataset, CoMA
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
@@ -63,9 +62,7 @@ os.makedirs(data_path, exist_ok=True)
 def load_dataset(config, data_path):
     dataset_name = config['dataset']
     dataset_params = config['dataset_params']
-    if dataset_name == 'DHCPScanAge':
-        return DHCPScanAgeDataset(data_path, **dataset_params)
-    elif dataset_name == 'BAMotifs':
+    if dataset_name == 'BAMotifs':
         return BAMotifs(data_path, **dataset_params)
     elif dataset_name == 'BAORMotifs':
         return BAORMotifs(data_path, **dataset_params)
@@ -107,8 +104,11 @@ def load_dataset(config, data_path):
             transform=None,
             pre_transform=T.Compose([T.FaceToEdge(remove_faces=False), T.ToUndirected(), ModelNetTransform()])
         )
-    elif config['dataset'] == 'PowerGrid':
-        return PowerGrid(data_path, name='IEEE24', datatype='regression', pre_filter=lambda data: data.y < 0.1)
+    elif config['dataset'] == 'RelSCH':
+        return RelSCDataset(
+            root=data_path,
+            project='hadoop'
+        )
     else:
         raise ValueError(f"Dataset {config['dataset']} not supported")
 
@@ -224,7 +224,10 @@ explainer_pretrained = config['explainer_pretrained']
 if explainer_pretrained is None:
     best_val_fid_diff = 0
     for epoch in range(config['explainer_epochs']):
-        train_metrics = explainer.train_batch(train_loader)
+        explainer_metrics = explainer.train_batch(train_loader, train_predictors=False)
+        for _ in range(1):
+            train_metrics = explainer.train_batch(train_loader, train_explainer=False)
+        train_metrics['explainer_loss'] = explainer_metrics['explainer_loss']
         val_metrics = explainer.evaluate_batch(val_loader)
         val_fid_diff = val_metrics['fidplus'] - val_metrics['fidminus']
         if val_fid_diff > best_val_fid_diff and val_metrics['sparsity'] < config['sparsity'] + 0.01:
