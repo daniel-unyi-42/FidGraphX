@@ -143,4 +143,7 @@ If you use FidGraphX or distributional fidelity in your work, please cite the ma
 
 This work was supported by the European Union project **RRF-2.3.1-21-2022-00004** within the Artificial Intelligence National Laboratory. Computational resources were provided by the Komondor supercomputer (KIFÜ) and HUN-REN Cloud.
 
-<!-- Add a License section only after a LICENSE file has been committed to the repository. -->
+## License
+
+This project is licensed under the MIT License.
+See the [LICENSE](LICENSE) file for details.
