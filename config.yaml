@@ -1,7 +1,7 @@
 data_path: "data"
 log_path: "logs"
 
-dataset: "BAMotifs"
+dataset: "BAANDMotifs"
 dataset_params:
   num_graphs: 3500
   attach_prob: 0.2
@@ -17,7 +17,7 @@ conv_type: "GINConv"
 num_layers: 4
 hidden_channels: 64
 use_norm: true
-learning_rate: 0.0005
+learning_rate: 0.002
 train_batch_size: 64
 eval_batch_size: 64
 baseline_epochs: 200
@@ -27,7 +27,7 @@ baseline_pretrained: null
 explainer_pretrained: null
 
 target_type: "hard"
-sparsity: 0.16
+sparsity: 0.24
 reward_coeff: 1.0
 
 train_size: 0.8
