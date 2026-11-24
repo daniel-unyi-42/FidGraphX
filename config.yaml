@@ -1,7 +1,7 @@
 data_path: "data"
 log_path: "logs"
 
-dataset: "BAANDMotifs"
+dataset: "BAMotifs"
 dataset_params:
   num_graphs: 3500
   attach_prob: 0.2
@@ -27,7 +27,7 @@ baseline_pretrained: null
 explainer_pretrained: null
 
 target_type: "hard"
-sparsity: 0.24
+sparsity: 0.16
 reward_coeff: 1.0
 
 train_size: 0.8
