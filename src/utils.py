@@ -98,7 +98,7 @@ def save_regression_comparison_plot(y_true, baseline_preds, pos_preds, neg_preds
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), dpi=300)
     single_regplot(axes[0], y_true, baseline_preds, "#005BBB", "Target GNN Reg. Plot", xlim=[-1, 9])
     single_regplot(axes[1], y_true, pos_preds, "#009933", "Pos. Predictor Reg. Plot", show_ylabel=False, xlim=[-1, 9])
-    single_regplot(axes[2], y_true, [-neg_pred for neg_pred in neg_preds], "#CC0000", "Neg. Predictor Reg. Plot", show_ylabel=False, xlim=[-1, 17])
+    single_regplot(axes[2], y_true, neg_preds, "#CC0000", "Neg. Predictor Reg. Plot", show_ylabel=False, xlim=[-1, 9])
 
     for ax in axes:
         ax.set_ylim([y_min_global, y_max_global])
