@@ -1,8 +1,8 @@
 services:
-  rlgraphs:
+  fidgraphx:
+    image: danielunyi42/fidgraphx
     build: .
-    container_name: rlgraphs-gpu-container
-    runtime: nvidia
+    container_name: fidgraphx-gpu-container
     deploy:
       resources:
         reservations:
@@ -14,7 +14,7 @@ services:
       - "8888:8888"
       - "6006:6006"
     volumes:
-      - /mnt/src/rlgraphs:/workspace
+      - .:/workspace
     working_dir: /workspace
     stdin_open: true
     tty: true
