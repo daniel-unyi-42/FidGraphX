@@ -73,7 +73,58 @@ We evaluate FidGraphX on synthetic and real-world graph datasets for classificat
 
 ## Getting Started
 
-# TODO
+### Requirements
+
+- Docker and Docker Compose
+- NVIDIA GPU with a compatible driver
+- NVIDIA Container Toolkit
+
+### Installation and Execution
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/daniel-unyi-42/FidGraphX.git
+   ```
+
+2. Enter the repository:
+
+   ```bash
+   cd FidGraphX
+   ```
+
+3. Build the Docker image:
+
+   ```bash
+   docker compose build
+   ```
+
+4. Start the container:
+
+   ```bash
+   docker compose up -d
+   ```
+
+5. Enter the container:
+
+   ```bash
+   docker compose exec fidgraphx bash
+   ```
+
+6. Run FidGraphX:
+
+   ```bash
+   python main.py
+   ```
+
+   Experiment settings can be modified in `config.yaml`.
+
+7. To stop the container, exit the shell and run:
+
+   ```bash
+   exit
+   docker compose down
+   ```
 
 ## Citation
 
