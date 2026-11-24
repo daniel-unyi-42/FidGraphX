@@ -1,14 +1,7 @@
 import os
 import torch
-from src.utils import apply_mask
-from src.metrics import (
-    fid_plus_prob, fid_minus_prob,
-    fid_plus_acc, fid_minus_acc,
-    fid_plus_cat_tv, fid_minus_cat_tv,
-    fid_minus_reg_tv, fid_plus_reg_tv,
-    precision_score, recall_score, f1_score,
-    roc_auc_score, pr_auc_score
-)
+from src.utils import apply_mask, tensor_to_list
+from src.metrics import accumulate_explanation_metrics
 
 
 class ProbeEvaluator:
@@ -102,24 +95,16 @@ class ProbeEvaluator:
             metric_target = target.argmax(dim=1) if self.task_type == 'classification' and self.target_type == 'soft' else target
             metrics['pos_metric'] += self.eval_pos_probe.metric(pos_logits, metric_target).item()
             metrics['neg_metric'] += self.eval_neg_probe.metric(neg_logits, metric_target).item()
-
-            if self.task_type == 'classification':
-                metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
-                metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-                metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
-                metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
-            else:
-                metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
-
-            if hasattr(data, 'true'):
-                metrics['precision'] += precision_score(mask, data.true)
-                metrics['recall'] += recall_score(mask, data.true)
-                metrics['f1'] += f1_score(mask, data.true)
-                metrics['pr_auc'] += pr_auc_score(probs, data.true)
-                metrics['roc_auc'] += roc_auc_score(probs, data.true)
+            accumulate_explanation_metrics(
+                metrics,
+                mask,
+                probs,
+                data.true if hasattr(data, 'true') else None,
+                pos_logits,
+                neg_logits,
+                baseline_logits,
+                self.task_type,
+            )
 
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
@@ -154,28 +139,55 @@ class ProbeEvaluator:
             metric_target = target.argmax(dim=1) if self.task_type == 'classification' and self.target_type == 'soft' else target
             metrics['pos_metric'] += self.eval_pos_probe.metric(pos_logits, metric_target).item()
             metrics['neg_metric'] += self.eval_neg_probe.metric(neg_logits, metric_target).item()
-
-            if self.task_type == 'classification':
-                metrics['fidplus_prob'] += fid_plus_prob(neg_logits, baseline_logits)
-                metrics['fidminus_prob'] += fid_minus_prob(pos_logits, baseline_logits)
-                metrics['fidplus_acc'] += fid_plus_acc(neg_logits, baseline_logits)
-                metrics['fidminus_acc'] += fid_minus_acc(pos_logits, baseline_logits)
-                metrics['fidplus'] += fid_plus_cat_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_cat_tv(pos_logits, baseline_logits)
-            else:
-                metrics['fidplus'] += fid_plus_reg_tv(neg_logits, baseline_logits)
-                metrics['fidminus'] += fid_minus_reg_tv(pos_logits, baseline_logits)
-
-            if hasattr(data, 'true'):
-                metrics['precision'] += precision_score(mask, data.true)
-                metrics['recall'] += recall_score(mask, data.true)
-                metrics['f1'] += f1_score(mask, data.true)
-                metrics['pr_auc'] += pr_auc_score(probs, data.true)
-                metrics['roc_auc'] += roc_auc_score(probs, data.true)
+            accumulate_explanation_metrics(
+                metrics,
+                mask,
+                probs,
+                data.true if hasattr(data, 'true') else None,
+                pos_logits,
+                neg_logits,
+                baseline_logits,
+                self.task_type,
+            )
 
         for metric_name in metrics:
             metrics[metric_name] /= len(loader)
         return metrics
+
+    @torch.no_grad()
+    def predict_batch(self, loader):
+        if self.eval_pos_probe is None or self.eval_neg_probe is None:
+            raise RuntimeError('Call initialize_probes() before predict_batch().')
+        self.eval_pos_probe.eval()
+        self.eval_neg_probe.eval()
+        pos_embs = []
+        pos_preds = []
+        neg_embs = []
+        neg_preds = []
+
+        for data in loader:
+            data = data.to(self.device)
+            probs = self.mask_provider.get_probs(data)
+            mask = self.mask_provider.sample_mask(data, mode='eval', probs=probs)
+            if mask.sum() == 0:
+                mask[0] += 1
+
+            pos_data = apply_mask(data, mask)
+            neg_data = apply_mask(data, 1.0 - mask)
+            pos_emb = self.eval_pos_probe.embed(pos_data)
+            neg_emb = self.eval_neg_probe.embed(neg_data)
+            pos_pred = self.eval_pos_probe.head(pos_emb)
+            neg_pred = self.eval_neg_probe.head(neg_emb)
+            if self.task_type == 'classification':
+                pos_pred = pos_pred.softmax(dim=1)
+                neg_pred = neg_pred.softmax(dim=1)
+
+            pos_embs += tensor_to_list(pos_emb)
+            pos_preds += tensor_to_list(pos_pred)
+            neg_embs += tensor_to_list(neg_emb)
+            neg_preds += tensor_to_list(neg_pred)
+
+        return pos_embs, pos_preds, neg_embs, neg_preds
 
     def fit(self, train_loader, val_loader, epochs):
         if self.eval_pos_probe is None or self.eval_neg_probe is None:

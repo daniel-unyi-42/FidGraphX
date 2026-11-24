@@ -1,6 +1,7 @@
 pyyaml
 mat73
 numpy
+nibabel
 networkx
 torch
 torchmetrics

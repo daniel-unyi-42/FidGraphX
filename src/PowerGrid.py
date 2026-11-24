@@ -38,12 +38,6 @@ def padding_features(features, max_num_nodes):
     features_padded[:num_nodes] = features.cpu()
     return torch.tensor(features_padded, dtype=torch.float)
 
-def padded_datalist(data_list, adj_list, max_num_nodes):
-    for i, data in enumerate(data_list):
-        data.adj_padded = padding_graphs(adj_list[i], max_num_nodes)
-        data.x_padded = padding_features(data.x, max_num_nodes)
-    return data_list
-
 def from_edge_index_to_adj(edge_index, edge_weight, max_n):
     adj = to_scipy_sparse_matrix(edge_index, edge_attr=edge_weight).toarray()
     assert len(adj) <= max_n, "The adjacency matrix contains more nodes than the graph!"
