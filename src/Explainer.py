@@ -58,7 +58,7 @@ class Explainer(nn.Module):
         )
         # L1 norm of the probability so that the model learns to use as few nodes as possible
         # instead of calculation for each graph, we calculate the mean over the whole batch
-        L1_norm = torch.mean(y_pred) # gnn.global_mean_pool(y_pred, batch)[batch]
+        L1_norm = gnn.global_mean_pool(y_pred, batch).mean() # gnn.global_mean_pool(y_pred, batch)[batch]
         assert 0 <= L1_norm <= 1
         # the selection budget is the difference between the sparsity target and the L1 norm
         selection_budget = torch.abs(self.sparsity - L1_norm)
